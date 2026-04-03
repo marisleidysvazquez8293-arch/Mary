@@ -1,0 +1,297 @@
+/**
+ * app.css — Estilos globales UDG-Proyectos
+ * Sistema de diseño basado en CSS variables (tokens)
+ * Framework: Bootstrap 5 + estilos propios
+ */
+
+/* ============================================================
+   1. TOKENS DE DISEÑO (CSS Custom Properties)
+   ============================================================ */
+:root {
+    /* Paleta UDG */
+    --udg-blue:        #003F8A;
+    --udg-blue-light:  #0057BC;
+    --udg-blue-dark:   #002A5E;
+    --udg-gold:        #F5A800;
+    --udg-gold-light:  #FFD166;
+
+    /* Colores semánticos */
+    --clr-primary:     var(--udg-blue);
+    --clr-accent:      var(--udg-gold);
+    --clr-success:     #2E7D32;
+    --clr-danger:      #C62828;
+    --clr-warning:     #F57F17;
+    --clr-info:        #01579B;
+
+    /* Superficies */
+    --clr-bg:          #F4F6F9;
+    --clr-surface:     #FFFFFF;
+    --clr-border:      #DDE3EC;
+    --clr-muted:       #6C757D;
+
+    /* Tipografía */
+    --font-base:       'Inter', system-ui, -apple-system, sans-serif;
+    --font-size-base:  1rem;
+    --line-height:     1.6;
+
+    /* Espaciado */
+    --space-xs:   0.25rem;
+    --space-sm:   0.5rem;
+    --space-md:   1rem;
+    --space-lg:   1.5rem;
+    --space-xl:   2.5rem;
+
+    /* Bordes */
+    --radius-sm:  0.375rem;
+    --radius-md:  0.75rem;
+    --radius-lg:  1.25rem;
+    --radius-pill: 50rem;
+
+    /* Sombras */
+    --shadow-sm:   0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:   0 4px 12px rgba(0,0,0,.10);
+    --shadow-lg:   0 8px 24px rgba(0,0,0,.12);
+
+    /* Transiciones */
+    --transition: 0.2s ease;
+    --transition-slow: 0.35s ease;
+}
+
+/* ============================================================
+   2. BASE / RESET
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+    font-family: var(--font-base);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height);
+    background-color: var(--clr-bg);
+    color: #1E2A3A;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+a {
+    color: var(--clr-primary);
+    text-decoration: none;
+    transition: color var(--transition);
+}
+a:hover { color: var(--udg-blue-light); }
+
+img { max-width: 100%; height: auto; }
+
+/* ============================================================
+   3. NAVBAR
+   ============================================================ */
+.udg-navbar {
+    background: var(--udg-blue-dark);
+    padding: 0.6rem 0;
+    border-bottom: 3px solid var(--udg-gold);
+}
+
+.udg-brand {
+    color: #fff !important;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+.udg-brand strong { color: var(--udg-gold); }
+
+.udg-navbar .nav-link {
+    color: rgba(255,255,255,.82) !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.45rem 0.75rem !important;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition), color var(--transition);
+}
+.udg-navbar .nav-link:hover,
+.udg-navbar .nav-link.active {
+    background: rgba(255,255,255,.1);
+    color: #fff !important;
+}
+
+.udg-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--udg-gold);
+}
+.udg-avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--udg-gold);
+    color: var(--udg-blue-dark);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+/* Badge notificaciones */
+.udg-notif-badge {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    font-size: 0.65rem;
+    min-width: 18px;
+    padding: 2px 4px;
+    border: 2px solid var(--udg-blue-dark);
+}
+
+/* ============================================================
+   4. LAYOUT PRINCIPAL
+   ============================================================ */
+.udg-main {
+    flex: 1;
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-xl);
+}
+
+.udg-alerts-container {
+    padding-top: var(--space-sm);
+}
+
+/* ============================================================
+   5. CARDS / PANELES
+   ============================================================ */
+.udg-card {
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-lg);
+    transition: box-shadow var(--transition), transform var(--transition);
+}
+.udg-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+/* ============================================================
+   6. BADGES DE ESTATUS
+   ============================================================ */
+.badge.bg-secondary { background-color: #6C757D !important; }
+.badge.bg-primary   { background-color: var(--udg-blue) !important; }
+.badge.bg-info      { background-color: #0dcaf0 !important; color: #000 !important; }
+.badge.bg-warning   { background-color: var(--udg-gold) !important; color: #000 !important; }
+.badge.bg-success   { background-color: var(--clr-success) !important; }
+.badge.bg-danger    { background-color: var(--clr-danger) !important; }
+.badge.bg-dark      { background-color: #1E2A3A !important; }
+
+/* ============================================================
+   7. BOTONES
+   ============================================================ */
+.btn-primary {
+    background: var(--udg-blue);
+    border-color: var(--udg-blue);
+    font-weight: 500;
+    transition: background var(--transition), transform var(--transition);
+}
+.btn-primary:hover {
+    background: var(--udg-blue-light);
+    border-color: var(--udg-blue-light);
+    transform: translateY(-1px);
+}
+
+.btn-outline-primary {
+    color: var(--udg-blue);
+    border-color: var(--udg-blue);
+}
+.btn-outline-primary:hover {
+    background: var(--udg-blue);
+    border-color: var(--udg-blue);
+}
+
+.btn-accent {
+    background: var(--udg-gold);
+    border-color: var(--udg-gold);
+    color: var(--udg-blue-dark);
+    font-weight: 600;
+}
+.btn-accent:hover { filter: brightness(1.08); }
+
+/* ============================================================
+   8. FORMULARIOS
+   ============================================================ */
+.form-control:focus, .form-select:focus {
+    border-color: var(--udg-blue-light);
+    box-shadow: 0 0 0 3px rgba(0, 63, 138, .15);
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+}
+
+/* ============================================================
+   9. AUTH LAYOUT
+   ============================================================ */
+.udg-auth-body {
+    background: linear-gradient(135deg, var(--udg-blue-dark) 0%, var(--udg-blue-light) 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg);
+}
+
+.udg-auth-wrapper { width: 100%; max-width: 460px; }
+
+.udg-auth-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+.udg-auth-title span { color: var(--udg-gold); }
+.udg-auth-subtitle { color: rgba(255,255,255,.75); font-size: 0.9rem; margin: 0; }
+
+.udg-auth-card { border: none; border-radius: var(--radius-lg); }
+
+/* ============================================================
+   10. FOOTER
+   ============================================================ */
+footer {
+    background: var(--udg-blue-dark);
+    color: rgba(255,255,255,.7);
+    padding: var(--space-lg) 0;
+    font-size: 0.875rem;
+    border-top: 3px solid var(--udg-gold);
+    margin-top: auto;
+}
+footer a { color: var(--udg-gold-light); }
+footer a:hover { color: #fff; }
+
+/* ============================================================
+   11. UTILIDADES
+   ============================================================ */
+.text-udg-blue { color: var(--udg-blue) !important; }
+.text-udg-gold { color: var(--udg-gold) !important; }
+.bg-udg-blue   { background: var(--udg-blue) !important; }
+.bg-udg-dark   { background: var(--udg-blue-dark) !important; }
+
+/* Skeleton loader (para AJAX) */
+.skeleton {
+    background: linear-gradient(90deg, #e8edf2 25%, #f0f4f8 50%, #e8edf2 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s infinite;
+    border-radius: var(--radius-sm);
+}
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   12. RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+    .udg-navbar { padding: 0.4rem 0; }
+    .udg-main   { padding-top: var(--space-md); }
+}

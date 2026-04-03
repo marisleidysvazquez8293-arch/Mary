@@ -1,0 +1,67 @@
+# Opciones del servidor
+Options -Indexes -MultiViews
+
+# Desactivar la firma del servidor
+ServerSignature Off
+
+# ---------------------------------------------------------------
+# REESCRITURA DE URLs (eliminar index.php de la URL)
+# ---------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /udg_proyectos/public/
+
+    # No reescribir archivos o directorios reales
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Todo lo demás va al index.php de CI4
+    RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+# ---------------------------------------------------------------
+# SEGURIDAD — Cabeceras HTTP
+# ---------------------------------------------------------------
+<IfModule mod_headers.c>
+    # Previene clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Previene MIME sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # XSS Protection (legacy)
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # Referrer policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ---------------------------------------------------------------
+# BLOQUEAR ACCESO DIRECTO A ARCHIVOS SENSIBLES
+# ---------------------------------------------------------------
+<FilesMatch "\.(env|log|sql|sh|bak|swp|md)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ---------------------------------------------------------------
+# TIPOS MIME para archivos del sistema
+# ---------------------------------------------------------------
+<IfModule mod_mime.c>
+    AddType application/javascript .js
+    AddType text/css .css
+</IfModule>
+
+# ---------------------------------------------------------------
+# CACHÉ — Archivos estáticos
+# ---------------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css               "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType image/png              "access plus 1 month"
+    ExpiresByType image/jpeg             "access plus 1 month"
+    ExpiresByType image/webp             "access plus 1 month"
+    ExpiresByType image/svg+xml         "access plus 1 month"
+    ExpiresByType font/woff2             "access plus 3 months"
+</IfModule>

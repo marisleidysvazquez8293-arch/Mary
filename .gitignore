@@ -1,0 +1,50 @@
+# =============================================
+# UDG-PROYECTOS — .gitignore
+# =============================================
+
+# Variables de entorno (NUNCA subir)
+.env
+*.env.local
+
+# Dependencias de Composer
+vendor/
+
+# Archivos subidos por usuarios
+writable/uploads/
+writable/logs/
+writable/cache/
+writable/session/
+writable/tmp/
+
+# Archivos de sistema
+writable/.gitkeep
+
+# Temporal de instalación
+_ci4_base/
+_ci4_tmp/
+
+# IDEs y editores
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos de log
+*.log
+
+# Cache de PHP
+*.compiled.php
+
+# Node (si se usa para assets)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Setup temporal
+login.html
+registro.html
+login.php
+registro.php
