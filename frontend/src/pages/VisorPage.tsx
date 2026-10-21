@@ -300,13 +300,16 @@ export function VisorPage() {
             </select>
           </label>
 
-          {geeMsg && (
-            <p className="mt-2 text-[0.7rem] leading-snug text-sade-warn">
-              GEE: {geeMsg}. Fallback mock solo si status degradado o error.
+          {(geeMsg || msg) && (
+            <p
+              className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[0.7rem] leading-snug text-slate-600"
+              role="status"
+            >
+              {geeMode !== 'ready' && (
+                <span className="font-medium text-slate-700">Modo limitado · </span>
+              )}
+              {geeMsg ?? msg}
             </p>
-          )}
-          {msg && (
-            <p className="mt-2 text-[0.7rem] leading-snug text-amber-800">{msg}</p>
           )}
         </div>
       </div>
