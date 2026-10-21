@@ -1,117 +1,49 @@
-# SADE — Visor cartográfico (frontend)
+# SADE — SPA frontend
 
-Interfaz web del **Sistema de Apoyo a Decisiones Espaciales** para localización de rellenos sanitarios en **Valles de Jalisco**.
+Interfaz React + Tailwind + Leaflet del **Sistema de Apoyo a Decisiones Espaciales** (rellenos sanitarios, Valles de Jalisco).
 
-Consume la API Django+DRF (`/api/`) del backend en `backend/` (rama/PR de PASO 1–4).
+## Pantallas (React Router)
 
-## Stack y elección de mapa
+| Ruta | RF/RI | Contenido |
+|------|-------|-----------|
+| `/` | RF-044 | Visor fullscreen OSM + exclusión/aptitud + inspector de celda; capas GEE (mock si no hay contrato) |
+| `/reglas` | RI-003 | Motor de reglas — 21 criterios, umbrales, buffers NOM-083 bloqueados |
+| `/ahp` | RI-004 | Pesos Apéndice B, matrices 1/9–9, alerta CR ≥ 0.10 |
+| `/escenarios` | RI-005 | Ejecutar, sensibilidad E0–E8, gráfico Jaccard, celdas estables |
+| `/expediente` | RF-039/046 | PDF + ZIP + leyenda legal |
 
-| Pieza | Elección |
-|-------|----------|
-| Build | Vite + React 19 + TypeScript |
-| Mapa | **Leaflet** (+ `react-leaflet`) |
-| Base | OpenStreetMap |
-| Capas de aptitud | GeoJSON del escenario (`GET /api/escenarios/{id}/geojson/`) |
-| Reproyección | `proj4` (EPSG:32613 → WGS84 para OSM) |
+## Stack
 
-**¿Por qué Leaflet y no OpenLayers?** Para el alcance v1 (OSM + una capa GeoJSON + leyenda + zoom a región) Leaflet es más ligero, con curva de adopción menor y suficiente. OpenLayers sería preferible si más adelante se necesitan proyecciones nativas complejas, WMS/WMTS multi-fuente o edición vectorial avanzada; el contrato TileJSON del backend ya anticipa esa evolución.
+Vite · React 19 · TypeScript · Tailwind CSS v4 · React Router · Leaflet · Recharts
 
-## Requisitos
-
-- Node.js 20+ (probado con 22)
-- Backend SADE corriendo en `http://127.0.0.1:8000` (opcional: el visor muestra una capa demo local si la API no responde)
+**Leaflet** (no OpenLayers): suficiente para OSM + GeoJSON + clics; GEE entra como TileURL cuando exista `sade-gee-api-contrato.md`.
 
 ## Instalación
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env   # editar credenciales si aplica
-```
-
-Variables relevantes (`.env`):
-
-| Variable | Descripción |
-|----------|-------------|
-| `VITE_API_URL` | Base absoluta de la API. **Vacío** = rutas `/api/…` vía proxy de Vite |
-| `VITE_PROXY_TARGET` | Destino del proxy en desarrollo (default `http://127.0.0.1:8000`) |
-| `VITE_API_USER` / `VITE_API_PASSWORD` | Basic Auth (DRF exige usuario + rol SADE) |
-| `VITE_DEMO_CONJUNTO_PESOS_ID` | ID de `ConjuntoPesosAHP` para «Ejecutar (demo)» (default `1`) |
-
-## Levantar en desarrollo
-
-Terminal 1 — backend:
-
-```bash
-cd backend
-source .venv/bin/activate   # o el venv que use
-python manage.py runserver
-```
-
-Terminal 2 — frontend:
-
-```bash
-cd frontend
+cp .env.example .env
 npm run dev
 ```
 
-Abrir **http://127.0.0.1:5173/**
+http://127.0.0.1:5173/
 
-El proxy de Vite reenvía `/api/*` → `VITE_PROXY_TARGET`.
+## API (PASO 4)
 
-## Uso de la UI
+Contrato: `internal/sade-paso4-api-contrato.md`
 
-1. El mapa inicia centrado en **Valles de Jalisco** con leyenda de 6 clases.
-2. **Actualizar** lista escenarios (`GET /api/escenarios/`).
-3. Seleccionar un escenario → carga GeoJSON y hace zoom a la capa.
-4. **Ejecutar (demo)** → `POST /api/escenarios/ejecutar/` con parámetros demo.
-5. Panel **Trazabilidad**: `hash_configuracion`, `hash_resultado`, pesos y fecha; **Reejecutar** compara hashes.
+| Path | Uso |
+|------|-----|
+| `POST /api/escenarios/ejecutar/` | Ejecutar |
+| `POST /api/escenarios/sensibilidad/` | E0–E8 |
+| `GET/POST …/hash/` | Trazabilidad |
+| `GET …/mapa/` | Capas mapa |
+| `GET …/consulta-celda/` | Inspector |
+| `GET …/pdf/` | Expediente |
+| `GET …/reproducibilidad/` | ZIP |
 
-Roles backend: ejecución requiere *Analista Territorial* o *Administrador Técnico*; lectura GeoJSON también *Auditor*.
-
-## Build de producción
-
-```bash
-cd frontend
-npm run build
-npm run preview
-```
-
-En producción configure `VITE_API_URL` hacia el origen del API (y CORS/sesión en Django si no usa el mismo host).
-
-## Estructura
-
-```
-frontend/
-  src/
-    api/client.ts          # Cliente HTTP
-    components/            # Panel, mapa, leyenda
-    constants/             # Clases de aptitud + región
-    data/demoGeoJson.ts    # Capa demo offline
-    utils/reproject.ts     # EPSG:32613 → 4326
-    App.tsx
-```
-
-
-## PASO 4 — componentes del visor
-
-| Componente | Rol |
-|------------|-----|
-| `MapViewer` | OSM + capa exclusión + aptitud reclasificada (Leaflet); clic → consulta |
-| `ConsultaCelda` | Desglose de 21 factores, restricciones y advertencia aeródromo |
-| `GestorEscenarios` | Versión de reglas, pesos AHP, ejecutar, sensibilidad, PDF/ZIP |
-
-### Endpoints (contrato `sade-paso4-api-contrato.md`)
-
-| Método | Path | Estado en UI |
-|--------|------|--------------|
-| POST | `/api/escenarios/ejecutar/` | Activo |
-| POST | `/api/escenarios/sensibilidad/` | Activo |
-| GET/POST | `/api/escenarios/{id}/hash/` | Activo (trazabilidad) |
-| GET | `/api/escenarios/{id}/mapa/` | Activo (fallback `/geojson/`) |
-| GET | `/api/escenarios/{id}/consulta-celda/?lat=&lon=` (o `row`/`col`) | Activo; mock solo si falla |
-| GET | `/api/escenarios/{id}/pdf/` | Activo; mock solo si falla |
-| GET | `/api/escenarios/{id}/reproducibilidad/` | Activo (ZIP); mock solo si falla |
+Si la API/GEE falla: **mocks con mensaje claro**.
 
 ## Docker
 

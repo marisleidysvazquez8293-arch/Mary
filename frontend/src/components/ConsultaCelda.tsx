@@ -25,59 +25,75 @@ export function ConsultaCelda({ data, loading, onClose }: ConsultaCeldaProps) {
         : null
 
   return (
-    <aside className="celda-panel" aria-label="Consulta de celda">
-      <header className="celda-panel__head">
+    <aside
+      className="absolute top-3 right-3 z-[1100] max-h-[calc(100%-1.5rem)] w-[min(28rem,calc(100%-1.5rem))] overflow-auto rounded border border-sade-border bg-white/97 p-3 shadow-lg"
+      aria-label="Inspector espacial"
+    >
+      <header className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h2 className="celda-panel__title">Consulta de celda</h2>
+          <h2 className="text-sm font-semibold">Inspector espacial</h2>
           {data && (
-            <p className="celda-panel__coords">
+            <p className="mt-0.5 font-mono text-[0.7rem] text-sade-muted">
               {coords ?? '—'}
               {data.fuente === 'mock' && (
-                <span className="celda-panel__badge"> fallback mock</span>
+                <span className="ml-1 font-sans font-semibold text-sade-warn">
+                  fallback mock
+                </span>
               )}
             </p>
           )}
         </div>
-        <button type="button" className="btn btn--ghost" onClick={onClose} aria-label="Cerrar">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded border border-sade-border px-2 py-1 text-xs hover:bg-slate-50"
+        >
           Cerrar
         </button>
       </header>
 
-      {loading && <p className="panel__hint">Consultando factores…</p>}
+      {loading && (
+        <p className="rounded bg-amber-50 px-2 py-1.5 text-xs text-sade-warn">
+          Consultando factores…
+        </p>
+      )}
 
       {data && !loading && (
         <>
-          <div className="celda-summary">
+          <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
             <div>
-              <span className="celda-summary__label">Clase</span>
+              <span className="block text-[0.65rem] tracking-wide text-sade-muted uppercase">
+                Clase
+              </span>
               <strong>
                 {data.class_code} · {data.class_label}
               </strong>
             </div>
             <div>
-              <span className="celda-summary__label">Aptitud S</span>
+              <span className="block text-[0.65rem] tracking-wide text-sade-muted uppercase">
+                Aptitud S
+              </span>
               <strong>{data.suitability}</strong>
             </div>
             <div>
-              <span className="celda-summary__label">Excluido</span>
+              <span className="block text-[0.65rem] tracking-wide text-sade-muted uppercase">
+                Excluido
+              </span>
               <strong>{data.excluido ? 'Sí' : 'No'}</strong>
             </div>
           </div>
 
           {data.advertencia_aerodromo?.aplica && (
-            <div className="celda-alert celda-alert--warn" role="status">
+            <div className="mb-2 rounded border border-yellow-300 bg-amber-50 p-2 text-xs text-sade-warn">
               <strong>Aeródromo (NOM-083 6.1.1)</strong>
-              <p>{data.advertencia_aerodromo.mensaje}</p>
-              {data.advertencia_aerodromo.distancia_km != null && (
-                <p>Distancia estimada: {data.advertencia_aerodromo.distancia_km} km</p>
-              )}
+              <p className="mt-1">{data.advertencia_aerodromo.mensaje}</p>
             </div>
           )}
 
           {restricciones.length > 0 && (
-            <div className="celda-alert celda-alert--danger">
+            <div className="mb-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-sade-danger">
               <strong>Restricciones activas</strong>
-              <ul>
+              <ul className="mt-1 list-disc pl-4">
                 {restricciones.map((r) => (
                   <li key={r}>{r}</li>
                 ))}
@@ -86,63 +102,48 @@ export function ConsultaCelda({ data, loading, onClose }: ConsultaCeldaProps) {
           )}
 
           {advertencias.length > 0 && (
-            <ul className="celda-warn-list">
+            <ul className="mb-2 list-disc pl-4 text-xs text-sade-warn">
               {advertencias.map((a) => (
                 <li key={a}>{a}</li>
               ))}
             </ul>
           )}
 
-          <h3 className="celda-panel__subtitle">
-            Desglose de factores ({data.factores.length})
+          <h3 className="mb-1 text-[0.7rem] font-bold tracking-wide text-sade-muted uppercase">
+            Desglose ({data.factores.length} factores)
           </h3>
-          <div className="celda-table-wrap">
-            <table className="celda-table">
+          <div className="max-h-56 overflow-auto rounded border border-sade-border">
+            <table className="w-full border-collapse text-[0.7rem]">
               <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Criterio</th>
-                  <th>xᵢ</th>
-                  <th>wᵢ</th>
-                  <th>w·x</th>
-                  <th>Rest.</th>
+                <tr className="sticky top-0 bg-slate-100 text-left text-sade-muted">
+                  <th className="px-1.5 py-1">ID</th>
+                  <th className="px-1.5 py-1">Criterio</th>
+                  <th className="px-1.5 py-1">xᵢ</th>
+                  <th className="px-1.5 py-1">wᵢ</th>
                 </tr>
               </thead>
               <tbody>
-                {data.factores.map((f) => {
-                  const contrib =
-                    f.contribucion ??
-                    Number((f.valor_factor * f.peso).toFixed(4))
-                  return (
-                    <tr
-                      key={f.id_criterio}
-                      className={f.restriccion_activa ? 'celda-table__row--rest' : undefined}
-                    >
-                      <td>
-                        <code>{f.id_criterio}</code>
-                      </td>
-                      <td title={f.detalle ?? f.nombre}>
-                        <span className="celda-table__nombre">{f.nombre ?? f.id_criterio}</span>
-                        {f.bloque && (
-                          <span className="celda-table__bloque">{f.bloque}</span>
-                        )}
-                      </td>
-                      <td>{f.valor_factor}</td>
-                      <td>{(f.peso * 100).toFixed(1)}%</td>
-                      <td>{contrib}</td>
-                      <td>{f.restriccion_activa ? 'Sí' : '—'}</td>
-                    </tr>
-                  )
-                })}
+                {data.factores.map((f) => (
+                  <tr
+                    key={f.id_criterio}
+                    className={`border-t border-slate-100 ${
+                      f.restriccion_activa ? 'bg-red-50' : ''
+                    }`}
+                  >
+                    <td className="px-1.5 py-1 font-mono">{f.id_criterio}</td>
+                    <td className="px-1.5 py-1">{f.nombre ?? f.id_criterio}</td>
+                    <td className="px-1.5 py-1">{f.valor_factor}</td>
+                    <td className="px-1.5 py-1">{(f.peso * 100).toFixed(1)}%</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
           {data.fuente === 'mock' && (
-            <p className="panel__hint">
-              Fallback mock: {data.mock_motivo ?? 'API no respondió'}. Path contrato:{' '}
-              <code>GET /api/escenarios/{'{id}'}/consulta-celda/?lat=&amp;lon=</code> (también{' '}
-              <code>row</code>/<code>col</code>).
+            <p className="mt-2 rounded bg-amber-50 px-2 py-1.5 text-[0.7rem] text-sade-warn">
+              Fallback mock: {data.mock_motivo ?? 'API no respondió'}. Path:{' '}
+              <code>GET …/consulta-celda/</code>
             </p>
           )}
         </>

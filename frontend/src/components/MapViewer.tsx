@@ -10,7 +10,6 @@ import {
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { PathOptions } from 'leaflet'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 
 import { DEFAULT_ZOOM, VALLES_BOUNDS, VALLES_CENTER } from '../constants/region'
 import { colorForClass, labelForClass } from '../constants/suitability'
@@ -28,6 +27,9 @@ interface MapViewerProps {
   fitKey: string | number | null
   onMapClick?: (p: MapClickPayload) => void
   clickMarker?: MapClickPayload | null
+  showExclusion?: boolean
+  showAptitud?: boolean
+  fullscreen?: boolean
 }
 
 function FitToData({
@@ -38,7 +40,6 @@ function FitToData({
   fitKey: string | number | null
 }) {
   const map = useMap()
-
   useEffect(() => {
     if (!data?.features?.length) {
       map.fitBounds(VALLES_BOUNDS, { padding: [24, 24] })
@@ -46,13 +47,9 @@ function FitToData({
     }
     const layer = L.geoJSON(data as GeoJSON.GeoJsonObject)
     const bounds = layer.getBounds()
-    if (bounds.isValid()) {
-      map.fitBounds(bounds.pad(0.08), { maxZoom: 13 })
-    } else {
-      map.fitBounds(VALLES_BOUNDS, { padding: [24, 24] })
-    }
+    if (bounds.isValid()) map.fitBounds(bounds.pad(0.08), { maxZoom: 13 })
+    else map.fitBounds(VALLES_BOUNDS, { padding: [24, 24] })
   }, [map, data, fitKey])
-
   return null
 }
 
@@ -76,7 +73,7 @@ function ClickMarker({ point }: { point: MapClickPayload | null | undefined }) {
       fillColor: '#f8fafc',
       fillOpacity: 0.95,
     }).addTo(map)
-    m.bindTooltip('Consulta de celda', { direction: 'top', offset: [0, -6] })
+    m.bindTooltip('Inspector espacial', { direction: 'top', offset: [0, -6] })
     return () => {
       map.removeLayer(m)
     }
@@ -84,10 +81,7 @@ function ClickMarker({ point }: { point: MapClickPayload | null | undefined }) {
   return null
 }
 
-function splitLayers(fc: FeatureCollection | null): {
-  exclusion: FeatureCollection | null
-  aptitude: FeatureCollection | null
-} {
+function splitLayers(fc: FeatureCollection | null) {
   if (!fc?.features?.length) return { exclusion: null, aptitude: null }
   const excl: Feature[] = []
   const apt: Feature[] = []
@@ -97,10 +91,8 @@ function splitLayers(fc: FeatureCollection | null): {
     else apt.push(f)
   }
   return {
-    exclusion: excl.length
-      ? { type: 'FeatureCollection', features: excl }
-      : null,
-    aptitude: apt.length ? { type: 'FeatureCollection', features: apt } : null,
+    exclusion: excl.length ? ({ type: 'FeatureCollection', features: excl } as FeatureCollection) : null,
+    aptitude: apt.length ? ({ type: 'FeatureCollection', features: apt } as FeatureCollection) : null,
   }
 }
 
@@ -137,7 +129,7 @@ function bindPopup(feature: Feature<Geometry>, layer: L.Layer) {
   const suit =
     typeof props.suitability === 'number' ? props.suitability.toFixed(3) : '—'
   layer.bindPopup(
-    `<strong>${label}</strong><br/>Código: ${props.class_code ?? '—'}<br/>Aptitud: ${suit}<br/><em>Clic en el mapa para desglose de celda</em>`,
+    `<strong>${label}</strong><br/>Código: ${props.class_code ?? '—'}<br/>Aptitud: ${suit}<br/><em>Clic → inspector de celda</em>`,
   )
 }
 
@@ -146,23 +138,20 @@ export function MapViewer({
   fitKey,
   onMapClick,
   clickMarker,
+  showExclusion = true,
+  showAptitud = true,
+  fullscreen = false,
 }: MapViewerProps) {
-  const wgs84 = useMemo(
-    () => (geojson ? toWgs84(geojson) : null),
-    [geojson],
-  )
+  const wgs84 = useMemo(() => (geojson ? toWgs84(geojson) : null), [geojson])
   const leafletData = wgs84 as FeatureCollection | null
-  const { exclusion, aptitude } = useMemo(
-    () => splitLayers(leafletData),
-    [leafletData],
-  )
+  const { exclusion, aptitude } = useMemo(() => splitLayers(leafletData), [leafletData])
 
   return (
-    <div className="map-shell">
+    <div className={`relative ${fullscreen ? 'h-full w-full' : 'h-full min-h-[55vh] w-full'}`}>
       <MapContainer
         center={VALLES_CENTER}
         zoom={DEFAULT_ZOOM}
-        className="map-shell__map"
+        className="h-full w-full"
         zoomControl={false}
         preferCanvas
       >
@@ -174,7 +163,7 @@ export function MapViewer({
         <FitToData data={leafletData} fitKey={fitKey} />
         <ClickHandler onMapClick={onMapClick} />
         <ClickMarker point={clickMarker} />
-        {aptitude && (
+        {showAptitud && aptitude && (
           <GeoJSON
             key={`apt-${String(fitKey)}`}
             data={aptitude}
@@ -182,7 +171,7 @@ export function MapViewer({
             onEachFeature={bindPopup}
           />
         )}
-        {exclusion && (
+        {showExclusion && exclusion && (
           <GeoJSON
             key={`exc-${String(fitKey)}`}
             data={exclusion}
@@ -192,7 +181,9 @@ export function MapViewer({
         )}
       </MapContainer>
       <Legend />
-      <p className="map-hint">Clic en el mapa → consulta de celda (21 factores)</p>
+      <p className="absolute right-3 bottom-4 z-[1000] hidden rounded border border-sade-border bg-white/95 px-2 py-1 text-[0.7rem] text-sade-muted shadow-sm sm:block">
+        Clic en el mapa → inspector espacial (21 factores)
+      </p>
     </div>
   )
 }
