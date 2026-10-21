@@ -62,11 +62,18 @@ python manage.py load_initial_rules --dry-run
 
 | Service | Module |
 |---------|--------|
-| `ReglasEngineService` | `apps/reglas/services.py` |
+| `RulesEngineService` (alias `ReglasEngineService`) | `apps/reglas/services/rules_engine.py` |
 | `AHPService` | `apps/multicriterio/services/ahp_service.py` |
 | `CLPService` | `apps/multicriterio/services/clp_service.py` |
 
-Import estable: `from apps.multicriterio.services import AHPService, CLPService`.
+Import estable:
+
+```python
+from apps.reglas.services import RulesEngineService
+from apps.multicriterio.services import AHPService, CLPService
+```
+
+API mapa: `GET /api/escenarios/{id}/mapa/` (GeoJSON + TileJSON).
 
 `AHPService` implementa reconstrucción `a_ij = v_ij/v_ji`, AIJ, autovector,
 IC/CR y diagnóstico de panel (CR individual, mediana, % ≥ 0.10).

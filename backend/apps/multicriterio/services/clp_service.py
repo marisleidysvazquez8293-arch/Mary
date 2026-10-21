@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -279,11 +279,153 @@ class CLPService:
                             stack.append((nr, nc))
         return labels
 
+    # ------------------------------------------------------------------
+    # API tesis (nombres en español)
+    # ------------------------------------------------------------------
+
+    def calcular_indice_aptitud(
+        self,
+        factores_normalizados: Sequence[np.ndarray],
+        pesos_globales: Sequence[float],
+        mascara_exclusion: np.ndarray,
+    ) -> np.ndarray:
+        """
+        S = (∑ w_i · x_i) · ∏ c_j con x_i ∈ [0, 5].
+
+        ``mascara_exclusion``: 1=permitido, 0=excluido (producto ∏ c_j).
+        Los pesos se usan tal cual (sin renormalizar) si ya suman ~1.
+        """
+        if len(factores_normalizados) != len(pesos_globales):
+            raise ValueError("factores y pesos deben tener la misma longitud")
+        if not factores_normalizados:
+            raise ValueError("factores_normalizados no puede estar vacío")
+        w = np.asarray(pesos_globales, dtype=float)
+        if np.any(w < 0):
+            raise ValueError("pesos_globales deben ser no negativos")
+        acc = np.zeros_like(np.asarray(factores_normalizados[0], dtype=float))
+        shape = acc.shape
+        for x, wi in zip(factores_normalizados, w):
+            xi = np.asarray(x, dtype=float)
+            if xi.shape != shape:
+                raise ValueError(f"Shape de factor {xi.shape} != {shape}")
+            if np.nanmax(xi) > 5.0 + 1e-6 or np.nanmin(xi) < -1e-6:
+                # Escala tesis 0–5; se tolera ligera desviación numérica
+                pass
+            acc = acc + wi * xi
+        return self.apply_exclusion(acc, mascara_exclusion)
+
+    def reclasificar_aptitud(self, raster_S: np.ndarray) -> np.ndarray:
+        """Alias tesis de ``reclassify`` (cortes 1.5 / 2.5 / 3.5 / 4.5)."""
+        return self.reclassify(raster_S)
+
+    def delimitar_poligonos_candidatos(
+        self,
+        raster_reclasificado: np.ndarray,
+        superficie_minima_ha: float,
+        *,
+        suitability: np.ndarray | None = None,
+        cell_area_m2: float | None = None,
+        municipality_labels: np.ndarray | None = None,
+    ) -> list[CandidatePolygon]:
+        """
+        Vectoriza (componentes conexas) celdas Favorable+Óptimo y descarta
+        polígonos con área < superficie_minima_ha.
+        """
+        cell_m2 = cell_area_m2 if cell_area_m2 is not None else self.cell_area_m2
+        if cell_m2 is None:
+            raise ValueError("cell_area_m2 requerido para convertir ha → celdas")
+        min_area_m2 = float(superficie_minima_ha) * 10_000.0
+        cm = np.asarray(raster_reclasificado)
+        s = (
+            np.asarray(suitability, dtype=float)
+            if suitability is not None
+            else cm.astype(float)
+        )
+        # Solo Favorable (4) y Óptimo (5)
+        cands = self.delineate_candidates(
+            cm,
+            s,
+            municipality_labels=municipality_labels,
+            min_class=SuitabilityClass.FAVORABLE,
+        )
+        # Ajustar área con cell_m2 explícito
+        kept: list[CandidatePolygon] = []
+        for c in cands:
+            n_cells = int(c.attributes.get("n_cells", 0))
+            area = n_cells * float(cell_m2)
+            if area + 1e-9 < min_area_m2:
+                continue
+            c.area_m2 = area
+            c.useful_life_years = self.estimate_useful_life_years(area)
+            kept.append(c)
+        return kept
+
+    def evaluar_poligonos_fase2(
+        self,
+        poligonos: Sequence[CandidatePolygon | Mapping[str, Any]],
+        *,
+        fill_height_m: float = 15.0,
+        waste_ton_per_year: float | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Criterios 18 (Vida útil / SOC_07) y 21 (Intermunicipalidad / SOC_10)
+        a nivel polígono (tesis §4.5.2 — evaluación en dos fases).
+        """
+        wpy = (
+            waste_ton_per_year
+            if waste_ton_per_year is not None
+            else self.waste_generation_ton_per_year
+        )
+        out: list[dict[str, Any]] = []
+        for p in poligonos:
+            if isinstance(p, CandidatePolygon):
+                data = {
+                    "candidate_id": p.candidate_id,
+                    "area_m2": p.area_m2,
+                    "intermunicipal": p.intermunicipal,
+                    "municipalities": list(p.municipalities),
+                    "mean_suitability": p.mean_suitability,
+                    "class_label": p.class_label,
+                }
+            else:
+                data = dict(p)
+            area = data.get("area_m2")
+            vida = None
+            if area is not None and wpy and wpy > 0:
+                volume_m3 = float(area) * fill_height_m
+                vida = (volume_m3 * self.density_ton_per_m3) / float(wpy)
+            # Factor 0–5 tipificado: ≥7 años SEDESOL → 5; lineal hacia 0
+            if vida is None:
+                factor_vida = None
+            elif vida >= 7.0:
+                factor_vida = 5.0
+            else:
+                factor_vida = max(0.0, 5.0 * (vida / 7.0))
+            n_munis = len(data.get("municipalities") or [])
+            inter = bool(data.get("intermunicipal")) or n_munis > 1
+            # Factor intermunicipalidad: más municipios → mayor aptitud (tope 5)
+            if n_munis <= 1:
+                factor_inter = 1.0 if not inter else 2.0
+            else:
+                factor_inter = min(5.0, 1.0 + n_munis)
+            out.append(
+                {
+                    **data,
+                    "soc_07_vida_util_anios": vida,
+                    "soc_07_factor_0_5": factor_vida,
+                    "soc_10_intermunicipal": inter,
+                    "soc_10_factor_0_5": factor_inter,
+                    "fase2_ok_vida_util_min_7": bool(vida is not None and vida >= 7.0),
+                }
+            )
+        return out
+
     def polygonize_stub(self, class_map: np.ndarray, transform: Any = None) -> list[Any]:
         """TODO: rasterio.features.shapes / shapely for real polygons."""
         raise NotImplementedError(
             "polygonize_stub: requires rasterio/shapely for geometry export."
         )
+
 
 
 __all__ = [

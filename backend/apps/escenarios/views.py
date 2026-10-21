@@ -32,7 +32,13 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
     def get_permissions(self):
         if self.action in ("ejecutar", "reejecutar"):
             return [IsAuthenticated(), CanExecuteEscenario()]
-        if self.action in ("geojson", "tilejson", "tiles_stub", "sensibilidad"):
+        if self.action in (
+            "geojson",
+            "tilejson",
+            "tiles_stub",
+            "sensibilidad",
+            "mapa",
+        ):
             return [IsAuthenticated(), CanAuditRead()]
         return super().get_permissions()
 
@@ -52,6 +58,10 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
         )
         payload = EscenarioSerializer(out.escenario).data
         payload["created"] = out.created
+        payload["hash_configuracion"] = out.escenario.hash_configuracion
+        payload["resumen_superficies"] = (
+            out.escenario.resultados_json or {}
+        ).get("class_counts", {})
         return Response(
             payload,
             status=status.HTTP_201_CREATED if out.created else status.HTTP_200_OK,
@@ -143,6 +153,36 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
         service = EscenarioExecutionService()
         base = request.build_absolute_uri("/").rstrip("/")
         return Response(service.tilejson_contract(escenario, request_base=base))
+
+    @action(detail=True, methods=["get"], url_path="mapa")
+    def mapa(self, request, pk=None):
+        """
+        Unifica GeoJSON + TileJSON en un solo contrato de mapa.
+        Query ?formato=geojson|tilejson para devolver solo uno.
+        """
+        formato = (request.query_params.get("formato") or "ambos").lower()
+        if formato == "geojson":
+            return self.geojson(request, pk=pk)
+        if formato == "tilejson":
+            return self.tilejson(request, pk=pk)
+
+        geo_resp = self.geojson(request, pk=pk)
+        tile_resp = self.tilejson(request, pk=pk)
+        if geo_resp.status_code >= 400:
+            return geo_resp
+        return Response(
+            {
+                "formato": "ambos",
+                "crs": "EPSG:32613",
+                "geojson": geo_resp.data,
+                "tilejson": tile_resp.data,
+                "endpoints": {
+                    "geojson": f"/api/escenarios/{pk}/geojson/",
+                    "tilejson": f"/api/escenarios/{pk}/tilejson/",
+                    "mapa": f"/api/escenarios/{pk}/mapa/",
+                },
+            }
+        )
 
     @action(
         detail=True,

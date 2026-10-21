@@ -9,12 +9,14 @@ from apps.reglas.services import (
     DEFAULT_AERODROME_WARNING_M,
     ReglasEngineService,
     RestrictionLayer,
+    RulesEngineService,
 )
 
 
 class ReglasEngineTests(unittest.TestCase):
     def setUp(self):
         self.engine = ReglasEngineService()
+        self.assertIs(ReglasEngineService, RulesEngineService)
 
     def test_conjunction_product(self):
         a = np.array([[1, 1], [0, 1]], dtype=float)

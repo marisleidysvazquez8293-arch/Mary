@@ -24,7 +24,7 @@ from apps.multicriterio.services import (
     CLPService,
     SuitabilityClass,
 )
-from apps.reglas.services import ReglasEngineService
+from apps.reglas.services import ReglasEngineService  # alias de RulesEngineService
 
 # Sensitivity experiment labels E0 (baseline) … E8
 SENSITIVITY_IDS = tuple(f"E{i}" for i in range(9))
