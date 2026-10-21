@@ -78,7 +78,20 @@ API mapa: `GET /api/escenarios/{id}/mapa/` (GeoJSON + TileJSON).
 `AHPService` implementa reconstrucción `a_ij = v_ij/v_ji`, AIJ, autovector,
 IC/CR y diagnóstico de panel (CR individual, mediana, % ≥ 0.10).
 
-## PASO 4 — REST API & audit
+## Docker (raíz del repo)
+
+```bash
+docker compose up --build
+# backend http://localhost:8000  ·  frontend http://localhost:3000  ·  PostGIS :5432
+```
+
+El servicio `frontend` apunta a `./frontend` (placeholder hasta merge de la UI).
+
+## PASO 4 — REST API, sensibilidad Tabla 4.3, PDF, ZIP
+
+Servicios: `apps/escenarios/services/` (`ScenarioTraceabilityService`,
+`SensitivityService`, `EscenarioExecutionService`) y
+`apps/visualizacion/services/pdf_service.py`.
 
 Base path: **`/api/`**
 
@@ -89,9 +102,14 @@ Base path: **`/api/`**
 | GET | `/api/escenarios/{id}/` | Detail |
 | POST | `/api/escenarios/ejecutar/` | Run Reglas+CLP; persist hashes |
 | POST | `/api/escenarios/{id}/reejecutar/` | Re-run; compare `hash_resultado` |
-| POST | `/api/escenarios/sensibilidad/` | E0–E8 + Jaccard matrix |
+| POST | `/api/escenarios/sensibilidad/` | Tabla 4.3 E0–E8 + Jaccard Favorable+Óptimo |
+| GET/POST | `/api/escenarios/{id}/hash/` | Hash config + trazabilidad SHA-256 |
+| GET | `/api/escenarios/{id}/reproducibilidad/` | ZIP RNF-002 / RF-039 |
+| GET | `/api/escenarios/{id}/pdf/` | Expediente PDF (leyenda legal) |
+| GET | `/api/escenarios/{id}/consulta-celda/` | 21 factores / restricciones / advertencias |
 | GET | `/api/escenarios/{id}/geojson/` | Class cell polygons (EPSG:32613 grid) |
 | GET | `/api/escenarios/{id}/tilejson/` | TileJSON stub → points at GeoJSON |
+| GET | `/api/escenarios/{id}/mapa/` | GeoJSON + TileJSON unificados |
 | GET | `/api/escenarios/{id}/tiles/{z}/{x}/{y}.png` | Tile stub (**501**) |
 
 ### Try it (session auth / browsable API)

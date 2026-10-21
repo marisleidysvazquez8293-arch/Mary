@@ -1,15 +1,9 @@
 """
-Scenario execution, repeatability, and sensitivity E0–E8 (PASO 4).
-
-Uses ReglasEngineService + CLPService. Spatial inputs may be:
-  - provided in parametros_ejecucion["criteria_rasters"] / ["distance_rasters"]
-  - or synthetic deterministic grids from parametros_ejecucion["demo_seed"]
-    (default) so CI/API tests need no PostGIS/GEE.
+EscenarioExecutionService — ejecución RulesEngine + CLP y consulta de celda.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -18,15 +12,17 @@ from django.utils import timezone as dj_timezone
 
 from apps.escenarios.hashing import hash_configuracion, hash_resultado
 from apps.escenarios.models import Escenario
+from apps.escenarios.services.sensitivity import SensitivityPair, SensitivityReport
 from apps.multicriterio.models import ConjuntoPesosAHP, PesoCriterio
 from apps.multicriterio.services import (
     CLASS_LABELS,
     CLPService,
     SuitabilityClass,
 )
+from apps.multicriterio.tests.fixtures.apendice_b_pesos import IDS_21
+from apps.reglas.data.initial_rules import CRITERIOS_SEED
 from apps.reglas.services import ReglasEngineService  # alias de RulesEngineService
 
-# Sensitivity experiment labels E0 (baseline) … E8
 SENSITIVITY_IDS = tuple(f"E{i}" for i in range(9))
 
 
@@ -46,26 +42,6 @@ class ReexecuteOutput:
     hash_resultado_nuevo: str
     config_unchanged: bool
     resultado_reproducido: bool
-
-
-@dataclass
-class SensitivityPair:
-    scenario_a: str
-    scenario_b: str
-    jaccard: float
-    intersection_cells: int
-    union_cells: int
-
-
-@dataclass
-class SensitivityReport:
-    baseline_id: str
-    experiments: list[dict[str, Any]]
-    pairwise_jaccard: list[SensitivityPair]
-    notes: str = (
-        "E0 = baseline weights; E1–E8 = ± perturbations of block/criterion weights. "
-        "Jaccard computed on cells with class >= Apto con restricciones."
-    )
 
 
 def _now():
@@ -408,7 +384,8 @@ class EscenarioExecutionService:
         return inter / union, inter, union
 
     def _apto_mask(self, class_map: np.ndarray) -> np.ndarray:
-        return np.asarray(class_map) >= int(SuitabilityClass.APTO_CON_RESTRICCIONES)
+        """Máscara Favorable+Óptimo (Tabla 4.3 / RF-040)."""
+        return np.asarray(class_map) >= int(SuitabilityClass.FAVORABLE)
 
     def sensitivity_e0_e8(
         self,
@@ -417,78 +394,154 @@ class EscenarioExecutionService:
         conjunto_pesos: ConjuntoPesosAHP,
         parametros_ejecucion: Mapping[str, Any] | None = None,
         persist: bool = False,
+        escenario_base: Escenario | None = None,
     ) -> SensitivityReport:
-        """
-        E0 baseline; E1–E8 weight perturbations (±20% on cycling criteria,
-        renormalized). Returns Jaccard pairwise vs E0 and among experiments.
-        """
-        base_params = dict(parametros_ejecucion or {})
-        base_params.setdefault("demo_seed", 42)
-        base_params.setdefault("shape", [8, 8])
-        criteria, _, base_weights = self._resolve_inputs(base_params)
-        if "weights" not in base_params:
-            base_params["weights"] = self.weights_from_conjunto(
-                conjunto_pesos, len(criteria)
-            ) if conjunto_pesos.pesos.exists() else base_weights
+        """Delega en SensitivityService (Tabla 4.3)."""
+        from apps.escenarios.services.sensitivity import SensitivityService
 
-        experiments: list[dict[str, Any]] = []
-        masks: dict[str, np.ndarray] = {}
+        svc = SensitivityService(execution_service=self)
+        if escenario_base is None:
+            params = dict(parametros_ejecucion or {})
+            params.setdefault("demo_seed", 42)
+            params.setdefault("shape", [8, 8])
+            params["n_criteria"] = 21
+            # Tabla 4.3 siempre opera sobre 21 pesos (ignora weights cortos de demos)
+            from apps.escenarios.services.sensitivity import SensitivityService as SS
 
-        for idx, eid in enumerate(SENSITIVITY_IDS):
-            params = dict(base_params)
-            w = np.array(params["weights"], dtype=float)
-            if idx > 0:
-                # Perturb criterion (idx-1) % n by ±20% alternating sign
-                k = (idx - 1) % len(w)
-                factor = 1.2 if idx % 2 == 1 else 0.8
-                w = w.copy()
-                w[k] *= factor
-                w = w / w.sum()
-                params["weights"] = w.tolist()
-                params["sensitivity_id"] = eid
-                params["perturbation"] = {"index": k, "factor": factor}
-
-            resultados = self.run_engine(params)
-            class_map = np.asarray(resultados["class_map"])
-            masks[eid] = self._apto_mask(class_map)
-            entry = {
-                "id": eid,
-                "weights": params["weights"],
-                "class_counts": resultados["class_counts"],
-                "hash_resultado": hash_resultado(resultados),
-            }
-            if persist:
-                out = self.execute(
-                    nombre=f"Sensibilidad {eid}",
-                    version_reglas_usada=version_reglas_usada,
-                    conjunto_pesos=conjunto_pesos,
-                    parametros_ejecucion=params,
-                    weights_from_db=False,
-                )
-                entry["escenario_id"] = out.escenario.pk
-                entry["hash_configuracion"] = out.escenario.hash_configuracion
-            experiments.append(entry)
-
-        pairs: list[SensitivityPair] = []
-        ids = list(masks.keys())
-        for i, a in enumerate(ids):
-            for b in ids[i + 1 :]:
-                jac, inter, union = self.jaccard_binary(masks[a], masks[b])
-                pairs.append(
-                    SensitivityPair(
-                        scenario_a=a,
-                        scenario_b=b,
-                        jaccard=round(jac, 6),
-                        intersection_cells=inter,
-                        union_cells=union,
-                    )
-                )
-
-        return SensitivityReport(
-            baseline_id="E0",
-            experiments=experiments,
-            pairwise_jaccard=pairs,
+            pesos = SS.pesos_e0_apendice_b(conjunto_pesos)
+            params["weights"] = [pesos[c] for c in IDS_21]
+            out = self.execute(
+                nombre="Sensibilidad E0",
+                version_reglas_usada=version_reglas_usada,
+                conjunto_pesos=conjunto_pesos,
+                parametros_ejecucion=params,
+                weights_from_db=False,
+            )
+            escenario_base = out.escenario
+        return svc.ejecutar_analisis_sensibilidad(
+            escenario_base, persist=persist
         )
+
+    def consultar_celda(
+        self,
+        escenario: Escenario,
+        *,
+        lat: float | None = None,
+        lon: float | None = None,
+        x: float | None = None,
+        y: float | None = None,
+        row: int | None = None,
+        col: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Consulta de celda (RF-044): 21 factores, restricciones y advertencias.
+
+        Acepta lat/lon (WGS84 approx → grid demo), x/y (EPSG:32613) o row/col.
+        """
+        resultados = escenario.resultados_json or {}
+        class_map = resultados.get("class_map")
+        suitability = resultados.get("suitability")
+        if class_map is None:
+            raise ValueError("Escenario sin class_map")
+
+        cm = np.asarray(class_map)
+        h, w = cm.shape
+        params = escenario.parametros_ejecucion or {}
+        cell_size = float(params.get("cell_size_m", 100.0))
+        origin_x = float(params.get("origin_x", 500_000.0))
+        origin_y = float(params.get("origin_y", 2_300_000.0))
+
+        if row is not None and col is not None:
+            i, j = int(row), int(col)
+        elif x is not None and y is not None:
+            j = int((float(x) - origin_x) // cell_size)
+            i = int((origin_y + h * cell_size - float(y)) // cell_size)
+        elif lat is not None and lon is not None:
+            # Aproximación UTM 13N para demos (no proj completa)
+            # lon≈-104 → x≈500000+; lat≈20.6 → y≈2280000+
+            approx_x = 500_000.0 + (float(lon) + 104.0) * 100_000.0
+            approx_y = 2_280_000.0 + (float(lat) - 20.5) * 110_000.0
+            j = int((approx_x - origin_x) // cell_size)
+            i = int((origin_y + h * cell_size - approx_y) // cell_size)
+        else:
+            raise ValueError("Indique lat/lon, x/y o row/col")
+
+        if not (0 <= i < h and 0 <= j < w):
+            raise ValueError(f"Celda fuera de rango: row={i}, col={j}, shape={cm.shape}")
+
+        code = int(cm[i, j])
+        s_val = float(np.asarray(suitability)[i, j]) if suitability is not None else None
+
+        # Factores: desde criteria usados o placeholders 21 criterios
+        weights = resultados.get("weights_used") or params.get("weights") or []
+        n = max(len(weights), 21)
+        seed = int(params.get("demo_seed", 42))
+        criteria, _ = self.build_demo_inputs(shape=(h, w), seed=seed, n_criteria=n)
+        factores = []
+        for idx in range(21):
+            cid = IDS_21[idx] if idx < len(IDS_21) else f"C_{idx+1}"
+            seed_meta = next((c for c in CRITERIOS_SEED if c["id_criterio"] == cid), None)
+            val = float(criteria[idx][i, j]) if idx < len(criteria) else None
+            w_i = float(weights[idx]) if idx < len(weights) else None
+            factores.append(
+                {
+                    "id_criterio": cid,
+                    "nombre": seed_meta["nombre"] if seed_meta else cid,
+                    "bloque": seed_meta["bloque"] if seed_meta else "",
+                    "valor_factor": val,
+                    "peso": w_i,
+                    "umbrales": (seed_meta or {}).get("regla", {}).get(
+                        "parametros_json", {}
+                    ),
+                }
+            )
+
+        exclusion = resultados.get("exclusion_product")
+        excl_val = (
+            float(np.asarray(exclusion)[i, j]) if exclusion is not None else None
+        )
+        restricciones = []
+        if excl_val is not None and excl_val <= 0:
+            for ac in resultados.get("applied_criteria") or []:
+                restricciones.append(
+                    {
+                        "id_criterio": ac.get("id_criterio") if isinstance(ac, dict) else ac,
+                        "motivo": "capa de exclusión (producto = 0)",
+                    }
+                )
+            if not restricciones:
+                restricciones.append(
+                    {
+                        "id_criterio": None,
+                        "motivo": "Celda excluida (∏ cⱼ = 0)",
+                    }
+                )
+
+        advertencias = []
+        for wmsg in resultados.get("warnings") or []:
+            advertencias.append(
+                {
+                    "id_criterio": wmsg.get("id_criterio"),
+                    "radius_m": wmsg.get("radius_m"),
+                    "message": wmsg.get("message"),
+                    "aplica_celda": code != int(SuitabilityClass.EXCLUIDO)
+                    or True,
+                }
+            )
+
+        return {
+            "escenario_id": escenario.pk,
+            "row": i,
+            "col": j,
+            "class_code": code,
+            "class_label": CLASS_LABELS.get(code, str(code)),
+            "suitability": s_val,
+            "exclusion_product": excl_val,
+            "factores": factores,
+            "restricciones": restricciones,
+            "advertencias": advertencias,
+            "crs": "EPSG:32613",
+        }
 
     def tilejson_contract(self, escenario: Escenario, request_base: str = "") -> dict[str, Any]:
         """

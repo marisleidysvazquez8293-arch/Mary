@@ -1,6 +1,7 @@
-"""API views for scenario execution, sensitivity, and map exports (PASO 4)."""
+"""API views for scenario execution, sensitivity, traceability, PDF (PASO 4)."""
 from __future__ import annotations
 
+from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -9,20 +10,24 @@ from rest_framework.views import APIView
 
 from apps.escenarios.models import Escenario
 from apps.escenarios.serializers import (
+    ConsultaCeldaSerializer,
     EjecutarEscenarioSerializer,
     EscenarioSerializer,
     SensibilidadSerializer,
 )
-from apps.escenarios.services import EscenarioExecutionService
+from apps.escenarios.services import (
+    EscenarioExecutionService,
+    ScenarioTraceabilityService,
+    SensitivityService,
+)
 from apps.multicriterio.models import ConjuntoPesosAHP
 from apps.usuarios.permissions import CanAuditRead, CanExecuteEscenario, HasSadeRole
+from apps.visualizacion.services import PdfExpedienteService
 
 
 class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    List/retrieve escenarios + execute / re-execute / map actions.
-
-    Permissions: authenticated + SADE role hooks (staff bypasses in tests).
+    List/retrieve escenarios + execute / sensitivity / hash / ZIP / PDF / celda.
     """
 
     queryset = Escenario.objects.select_related("conjunto_pesos").all()
@@ -30,14 +35,17 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, HasSadeRole]
 
     def get_permissions(self):
-        if self.action in ("ejecutar", "reejecutar"):
+        if self.action in ("ejecutar", "reejecutar", "sensibilidad"):
             return [IsAuthenticated(), CanExecuteEscenario()]
         if self.action in (
             "geojson",
             "tilejson",
             "tiles_stub",
-            "sensibilidad",
             "mapa",
+            "hash_configuracion",
+            "reproducibilidad",
+            "pdf",
+            "consulta_celda",
         ):
             return [IsAuthenticated(), CanAuditRead()]
         return super().get_permissions()
@@ -85,22 +93,37 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="sensibilidad")
     def sensibilidad(self, request):
+        """
+        POST /api/escenarios/sensibilidad/
+
+        Body: conjunto_pesos_id, version_reglas_usada?, parametros_ejecucion?,
+              persist?, escenario_base_id? (E0 existente).
+        """
         ser = SensibilidadSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         conjunto = ConjuntoPesosAHP.objects.get(pk=data["conjunto_pesos_id"])
         service = EscenarioExecutionService()
+        escenario_base = None
+        if data.get("escenario_base_id"):
+            escenario_base = Escenario.objects.get(pk=data["escenario_base_id"])
         report = service.sensitivity_e0_e8(
             version_reglas_usada=data["version_reglas_usada"],
             conjunto_pesos=conjunto,
             parametros_ejecucion=data.get("parametros_ejecucion") or {},
             persist=data.get("persist", False),
+            escenario_base=escenario_base,
         )
         return Response(
             {
                 "baseline_id": report.baseline_id,
+                "baseline_escenario_id": report.baseline_escenario_id,
                 "notes": report.notes,
                 "experiments": report.experiments,
+                "jaccard_vs_e0": report.jaccard_vs_e0,
+                "zonas_estables_favorable_optimo": (
+                    report.zonas_estables_favorable_optimo
+                ),
                 "pairwise_jaccard": [
                     {
                         "scenario_a": p.scenario_a,
@@ -114,12 +137,106 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
             }
         )
 
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="hash",
+    )
+    def hash_configuracion(self, request, pk=None):
+        """
+        GET/POST /api/escenarios/{id}/hash/
+
+        Devuelve hash persistido y hash de trazabilidad (reglas+capas+pesos+params).
+        POST recalcula y opcionalmente actualiza hash_configuracion si ?actualizar=1.
+        """
+        escenario = self.get_object()
+        trace = ScenarioTraceabilityService()
+        persistido = trace.hash_configuracion_persistido(escenario)
+        trazabilidad = trace.generar_hash_configuracion(escenario)
+        updated = False
+        if request.method == "POST" and str(
+            request.query_params.get("actualizar", "")
+        ) in ("1", "true", "True"):
+            escenario.hash_configuracion = persistido
+            escenario.save(update_fields=["hash_configuracion"])
+            updated = True
+        return Response(
+            {
+                "escenario_id": escenario.pk,
+                "hash_configuracion": escenario.hash_configuracion,
+                "hash_configuracion_recalculado": persistido,
+                "hash_trazabilidad": trazabilidad,
+                "hash_resultado": escenario.hash_resultado,
+                "coincide_persistido": escenario.hash_configuracion == persistido,
+                "updated": updated,
+            }
+        )
+
+    @action(detail=True, methods=["get"], url_path="reproducibilidad")
+    def reproducibilidad(self, request, pk=None):
+        """GET /api/escenarios/{id}/reproducibilidad/ — descarga ZIP RNF-002."""
+        trace = ScenarioTraceabilityService()
+        try:
+            data = trace.generar_paquete_reproducibilidad(int(pk))
+        except Escenario.DoesNotExist:
+            return Response(
+                {"detail": "Escenario no encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        resp = HttpResponse(data, content_type="application/zip")
+        resp["Content-Disposition"] = (
+            f'attachment; filename="sade-reproducibilidad-{pk}.zip"'
+        )
+        return resp
+
+    @action(detail=True, methods=["get"], url_path="pdf")
+    def pdf(self, request, pk=None):
+        """GET /api/escenarios/{id}/pdf/ — descarga expediente PDF."""
+        try:
+            pdf_bytes = PdfExpedienteService().generar_pdf_expediente(int(pk))
+        except Escenario.DoesNotExist:
+            return Response(
+                {"detail": "Escenario no encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = (
+            f'attachment; filename="sade-expediente-{pk}.pdf"'
+        )
+        return resp
+
+    @action(detail=True, methods=["get"], url_path="consulta-celda")
+    def consulta_celda(self, request, pk=None):
+        """
+        GET /api/escenarios/{id}/consulta-celda/?lat=&lon= | ?x=&y= | ?row=&col=
+
+        21 factores, restricciones y advertencias (ConsultaCelda / RF-044).
+        """
+        escenario = self.get_object()
+        ser = ConsultaCeldaSerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        q = ser.validated_data
+        try:
+            payload = EscenarioExecutionService().consultar_celda(
+                escenario,
+                lat=q.get("lat"),
+                lon=q.get("lon"),
+                x=q.get("x"),
+                y=q.get("y"),
+                row=q.get("row"),
+                col=q.get("col"),
+            )
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(payload)
+
     @action(detail=True, methods=["get"], url_path="geojson")
     def geojson(self, request, pk=None):
         escenario = self.get_object()
         geo = (escenario.resultados_json or {}).get("geojson")
         if not geo:
-            # Rebuild features if missing (legacy rows)
             service = EscenarioExecutionService()
             class_map = (escenario.resultados_json or {}).get("class_map")
             suitability = (escenario.resultados_json or {}).get("suitability")
@@ -135,7 +252,6 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
                 np.asarray(suitability if suitability is not None else class_map),
             )
             geo = {"type": "FeatureCollection", "features": features}
-        # Attach audit props at collection level
         geo = {
             **geo,
             "sade_audit": {
@@ -156,10 +272,6 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="mapa")
     def mapa(self, request, pk=None):
-        """
-        Unifica GeoJSON + TileJSON en un solo contrato de mapa.
-        Query ?formato=geojson|tilejson para devolver solo uno.
-        """
         formato = (request.query_params.get("formato") or "ambos").lower()
         if formato == "geojson":
             return self.geojson(request, pk=pk)
@@ -180,6 +292,10 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
                     "geojson": f"/api/escenarios/{pk}/geojson/",
                     "tilejson": f"/api/escenarios/{pk}/tilejson/",
                     "mapa": f"/api/escenarios/{pk}/mapa/",
+                    "consulta_celda": f"/api/escenarios/{pk}/consulta-celda/",
+                    "pdf": f"/api/escenarios/{pk}/pdf/",
+                    "reproducibilidad": f"/api/escenarios/{pk}/reproducibilidad/",
+                    "hash": f"/api/escenarios/{pk}/hash/",
                 },
             }
         )
@@ -190,7 +306,6 @@ class EscenarioViewSet(viewsets.ReadOnlyModelViewSet):
         url_path=r"tiles/(?P<z>[0-9]+)/(?P<x>[0-9]+)/(?P<y>[0-9]+).png",
     )
     def tiles_stub(self, request, pk=None, z=None, x=None, y=None):
-        """Placeholder XYZ tile — returns 501 until tiling stack is ready."""
         return Response(
             {
                 "detail": "Tile rendering not implemented (stub).",
@@ -211,3 +326,7 @@ class HealthAPIView(APIView):
 
     def get(self, request):
         return Response({"status": "ok", "service": "sade-api", "paso": 4})
+
+
+# Alias usado por SensitivityService en algunos paths
+__all__ = ["EscenarioViewSet", "HealthAPIView", "SensitivityService"]

@@ -80,6 +80,7 @@ DATABASES = {
 
 # Default SRID for spatial analysis (UTM 13N)
 SADE_DEFAULT_SRID = 32613
+SADE_SOFTWARE_VERSION = os.environ.get("SADE_SOFTWARE_VERSION", "1.0.0")
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

@@ -61,11 +61,42 @@ class SensibilidadSerializer(serializers.Serializer):
         default=False,
         help_text="Si true, persiste E0–E8 como Escenario rows.",
     )
+    escenario_base_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Escenario E0 existente; si se omite se crea uno.",
+    )
 
     def validate_conjunto_pesos_id(self, value: int) -> int:
         if not ConjuntoPesosAHP.objects.filter(pk=value).exists():
             raise serializers.ValidationError("ConjuntoPesosAHP no existe.")
         return value
+
+    def validate_escenario_base_id(self, value):
+        if value is None:
+            return value
+        if not Escenario.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Escenario base no existe.")
+        return value
+
+
+class ConsultaCeldaSerializer(serializers.Serializer):
+    lat = serializers.FloatField(required=False)
+    lon = serializers.FloatField(required=False)
+    x = serializers.FloatField(required=False)
+    y = serializers.FloatField(required=False)
+    row = serializers.IntegerField(required=False)
+    col = serializers.IntegerField(required=False)
+
+    def validate(self, attrs):
+        has_ll = attrs.get("lat") is not None and attrs.get("lon") is not None
+        has_xy = attrs.get("x") is not None and attrs.get("y") is not None
+        has_rc = attrs.get("row") is not None and attrs.get("col") is not None
+        if not (has_ll or has_xy or has_rc):
+            raise serializers.ValidationError(
+                "Indique lat+lon, x+y (EPSG:32613) o row+col."
+            )
+        return attrs
 
 
 class SensitivityPairSerializer(serializers.Serializer):
