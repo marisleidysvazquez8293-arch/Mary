@@ -91,3 +91,33 @@ frontend/
     utils/reproject.ts     # EPSG:32613 → 4326
     App.tsx
 ```
+
+
+## PASO 4 — componentes del visor
+
+| Componente | Rol |
+|------------|-----|
+| `MapViewer` | OSM + capa exclusión + aptitud reclasificada (Leaflet); clic → consulta |
+| `ConsultaCelda` | Desglose de 21 factores, restricciones y advertencia aeródromo |
+| `GestorEscenarios` | Versión de reglas, pesos AHP, ejecutar, sensibilidad, PDF/ZIP |
+
+### Endpoints consumidos / previstos
+
+| Método | Path | Estado en UI |
+|--------|------|--------------|
+| POST | `/api/escenarios/ejecutar/` | Activo |
+| POST | `/api/escenarios/sensibilidad/` | Activo |
+| GET | `/api/escenarios/{id}/mapa/` | Activo (fallback `/geojson/`) |
+| GET | `/api/escenarios/{id}/celda/?lat=&lon=` | **TODO** backend → mock demo |
+| GET | `/api/escenarios/{id}/expediente.pdf` | **TODO** → descarga marcador |
+| GET | `/api/escenarios/{id}/reproducibilidad.zip` | **TODO** → descarga marcador |
+
+Cuando exista `/cursor/stores/self/internal/sade-paso4-api-contrato.md`, alinear paths/params.
+
+## Docker
+
+```bash
+cd frontend
+docker build -t sade-frontend .
+docker run --rm -p 8080:80 sade-frontend
+```
