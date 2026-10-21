@@ -64,8 +64,30 @@ aerodrome warning &lt;13 km (`SOC_02`). CR fields are `0.0` until AHPService.
 
 Data module: `apps/reglas/data/initial_rules.py`
 
-## Out of scope (PASO 1–2)
+## PASO 3 — engine services
 
-- Domain services (`AHPService`, suitability engines), DRF views/serializers
-- GeometryField footprints (metadata SRID is ready; GIS fields later)
+| Service | Module | Role |
+|---------|--------|------|
+| `ReglasEngineService` | `apps/reglas/services.py` | Exclusion mask ∏ c_j, 500 m buffers, aerodrome warnings |
+| `AHPService` | `apps/multicriterio/services.py` | Eigenvector, CR=IC/IA, AIJ geometric mean |
+| `CLPService` | `apps/multicriterio/services.py` | S=(∑ w·x)·∏c, 6-class reclass, candidate stubs |
+
+### Tests (no PostGIS required)
+
+```bash
+cd backend
+pip install -r requirements.txt
+
+# Recommended (sqlite test settings):
+DJANGO_SETTINGS_MODULE=config.settings_test python manage.py test \
+  apps.multicriterio.tests apps.reglas.tests -v2
+
+# Or pure unittest discovery:
+PYTHONPATH=. python -m unittest discover -s apps -p 'test_*.py' -v
+```
+
+## Out of scope (through PASO 3)
+
+- PASO 4: DRF endpoints / serializers
+- GeometryField footprints; full shapely/rasterio/GEE backends (stubs only)
 - Full VIS / RBAC models
