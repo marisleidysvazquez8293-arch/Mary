@@ -43,6 +43,17 @@ Contrato: `internal/sade-paso4-api-contrato.md`
 | `GET …/pdf/` | Expediente |
 | `GET …/reproducibilidad/` | ZIP |
 
+### GEE (`sade-gee-api-contrato.md`)
+
+| Path | Uso en Visor |
+|------|----------------|
+| `GET /api/gee/status/` | Badge ready/degraded |
+| `GET /api/gee/capas/?tiles=1` | Catálogo + `tile_url_template` XYZ |
+| `GET /api/gee/capas/{id}/tiles/` | Refresco de plantilla XYZ |
+| `GET /api/gee/consulta-celda/` | Inspector espacial (opción GEE) |
+
+Mock **solo** si `mode: degraded` o error de red/API.
+
 Si la API/GEE falla: **mocks con mensaje claro**.
 
 ## Docker

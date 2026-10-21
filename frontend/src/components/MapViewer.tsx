@@ -22,6 +22,15 @@ export interface MapClickPayload {
   lon: number
 }
 
+export interface GeeXyzLayer {
+  id: string
+  nombre: string
+  /** Plantilla XYZ con {z}/{x}/{y} */
+  url: string
+  opacity?: number
+  visible?: boolean
+}
+
 interface MapViewerProps {
   geojson: SadeFeatureCollection | null
   fitKey: string | number | null
@@ -30,6 +39,8 @@ interface MapViewerProps {
   showExclusion?: boolean
   showAptitud?: boolean
   fullscreen?: boolean
+  /** Capas GEE XYZ dinámicas (contrato /api/gee/capas/). */
+  geeLayers?: GeeXyzLayer[]
 }
 
 function FitToData({
@@ -141,10 +152,12 @@ export function MapViewer({
   showExclusion = true,
   showAptitud = true,
   fullscreen = false,
+  geeLayers = [],
 }: MapViewerProps) {
   const wgs84 = useMemo(() => (geojson ? toWgs84(geojson) : null), [geojson])
   const leafletData = wgs84 as FeatureCollection | null
   const { exclusion, aptitude } = useMemo(() => splitLayers(leafletData), [leafletData])
+  const visibleGee = geeLayers.filter((l) => l.visible !== false && l.url)
 
   return (
     <div className={`relative ${fullscreen ? 'h-full w-full' : 'h-full min-h-[55vh] w-full'}`}>
@@ -159,6 +172,15 @@ export function MapViewer({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {visibleGee.map((layer) => (
+          <TileLayer
+            key={layer.id}
+            url={layer.url}
+            opacity={layer.opacity ?? 0.65}
+            maxZoom={18}
+            attribution={`GEE · ${layer.nombre}`}
+          />
+        ))}
         <ZoomControl position="topright" />
         <FitToData data={leafletData} fitKey={fitKey} />
         <ClickHandler onMapClick={onMapClick} />
@@ -182,7 +204,7 @@ export function MapViewer({
       </MapContainer>
       <Legend />
       <p className="absolute right-3 bottom-4 z-[1000] hidden rounded border border-sade-border bg-white/95 px-2 py-1 text-[0.7rem] text-sade-muted shadow-sm sm:block">
-        Clic en el mapa → inspector espacial (21 factores)
+        Clic en el mapa → inspector espacial (GEE / escenario)
       </p>
     </div>
   )
