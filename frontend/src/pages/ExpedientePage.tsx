@@ -86,8 +86,9 @@ export function ExpedientePage() {
       <header className="mb-4">
         <h2 className="text-lg font-semibold">Expediente · RF-039 / RF-046</h2>
         <p className="mt-1 text-sm text-sade-muted">
-          Descargue el expediente PDF y el paquete ZIP de reproducibilidad. Incluye
-          leyenda legal.
+          Genere el expediente PDF del escenario y el paquete ZIP de
+          reproducibilidad (config, pesos AHP, hashes de capas, software,
+          resultados). Incluye la leyenda legal obligatoria.
         </p>
       </header>
 

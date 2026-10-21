@@ -64,8 +64,9 @@ export function AhpPage() {
       <header className="mb-4">
         <h2 className="text-lg font-semibold">AHP · RI-004</h2>
         <p className="mt-1 text-sm text-sade-muted">
-          Pesos publicados del Apéndice B (no se exigen matrices crudas del panel
-          histórico). Formulario de juicios 1/9–9 con indicador CR.
+          Pesos publicados del Apéndice B (panel de 15 expertos, agregación AIJ).
+          Puede explorar juicios 1/9–9; si CR ≥ 0.10 se muestra alerta. No se
+          requieren matrices crudas del panel histórico.
         </p>
       </header>
 

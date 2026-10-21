@@ -38,6 +38,8 @@ interface MapViewerProps {
   clickMarker?: MapClickPayload | null
   showExclusion?: boolean
   showAptitud?: boolean
+  showCandidatos?: boolean
+  candidatos?: FeatureCollection | null
   fullscreen?: boolean
   /** Capas GEE XYZ dinámicas (contrato /api/gee/capas/). */
   geeLayers?: GeeXyzLayer[]
@@ -134,14 +136,32 @@ function bindPopup(feature: Feature<Geometry>, layer: L.Layer) {
     class_code?: number
     class_label?: string
     suitability?: number
+    candidate_id?: string
+    area_ha?: number
   } | null
   if (!props) return
+  if (props.candidate_id) {
+    layer.bindPopup(
+      `<strong>Candidato ${props.candidate_id}</strong><br/>${props.class_label ?? ''}<br/>Área: ${props.area_ha ?? '—'} ha<br/>S: ${props.suitability ?? '—'}`,
+    )
+    return
+  }
   const label = props.class_label ?? labelForClass(Number(props.class_code))
   const suit =
     typeof props.suitability === 'number' ? props.suitability.toFixed(3) : '—'
   layer.bindPopup(
     `<strong>${label}</strong><br/>Código: ${props.class_code ?? '—'}<br/>Aptitud: ${suit}<br/><em>Clic → inspector de celda</em>`,
   )
+}
+
+function styleCandidatos(): PathOptions {
+  return {
+    color: '#0ea5e9',
+    weight: 2.5,
+    fillColor: '#38bdf8',
+    fillOpacity: 0.25,
+    dashArray: '6 4',
+  }
 }
 
 export function MapViewer({
@@ -151,6 +171,8 @@ export function MapViewer({
   clickMarker,
   showExclusion = true,
   showAptitud = true,
+  showCandidatos = true,
+  candidatos = null,
   fullscreen = false,
   geeLayers = [],
 }: MapViewerProps) {
@@ -198,6 +220,14 @@ export function MapViewer({
             key={`exc-${String(fitKey)}`}
             data={exclusion}
             style={styleExclusion}
+            onEachFeature={bindPopup}
+          />
+        )}
+        {showCandidatos && candidatos && (
+          <GeoJSON
+            key={`cand-${String(fitKey)}`}
+            data={candidatos}
+            style={styleCandidatos}
             onEachFeature={bindPopup}
           />
         )}

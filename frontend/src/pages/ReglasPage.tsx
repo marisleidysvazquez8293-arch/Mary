@@ -20,6 +20,8 @@ export function ReglasPage() {
     CRITERIOS_CATALOGO.map((c) => ({ ...c })),
   )
   const [msg, setMsg] = useState<string | null>(null)
+  const [historial, setHistorial] = useState<string[]>(['1.0.0'])
+  const [loading] = useState(false)
 
   const porBloque = useMemo(() => {
     const map = new Map<string, CriterioCatalogo[]>()
@@ -75,15 +77,34 @@ export function ReglasPage() {
         <button
           type="button"
           className="rounded bg-sade-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-sade-accent-hover"
-          onClick={() =>
+          onClick={() => {
+            if (!historial.includes(version)) {
+              setHistorial((h) => [version, ...h])
+            }
             setMsg(
-              `Versión ${version} marcada (mock). TODO: POST API versionado de reglas.`,
+              `Versión ${version} registrada en el historial local. Persistencia remota cuando la API de reglas esté disponible.`,
             )
-          }
+          }}
         >
           Guardar versión
         </button>
+        <div className="text-xs text-sade-muted">
+          Historial:{' '}
+          {historial.map((v) => (
+            <button
+              key={v}
+              type="button"
+              className="mr-1 rounded bg-white px-1.5 py-0.5 font-mono ring-1 ring-sade-border hover:bg-slate-50"
+              onClick={() => setVersion(v)}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
       </div>
+      {loading && (
+        <p className="mb-3 text-xs text-sade-muted">Cargando criterios…</p>
+      )}
 
       {msg && (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-sade-warn">

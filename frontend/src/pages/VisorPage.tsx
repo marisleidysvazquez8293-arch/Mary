@@ -14,6 +14,8 @@ import {
   type GeeXyzLayer,
   type MapClickPayload,
 } from '../components/MapViewer'
+import { StatusLine } from '../components/StatusLine'
+import { DEMO_CANDIDATOS } from '../data/demoCandidatos'
 import { DEMO_GEOJSON } from '../data/demoGeoJson'
 import type { ConsultaCeldaResponse, Escenario, SadeFeatureCollection } from '../types/api'
 
@@ -37,10 +39,14 @@ export function VisorPage() {
   const [clickPoint, setClickPoint] = useState<MapClickPayload | null>(null)
   const [showExclusion, setShowExclusion] = useState(true)
   const [showAptitud, setShowAptitud] = useState(true)
+  const [showCandidatos, setShowCandidatos] = useState(true)
   const [inspectorFuente, setInspectorFuente] = useState<'gee' | 'escenario'>('gee')
+  const [booting, setBooting] = useState(true)
+  const [mapLoading, setMapLoading] = useState(false)
 
   useEffect(() => {
     void (async () => {
+      setBooting(true)
       try {
         await fetchHealth()
         setApiOk(true)
@@ -49,7 +55,7 @@ export function VisorPage() {
         if (list[0]) setSelectedId(list[0].id)
       } catch {
         setApiOk(false)
-        setMsg('API escenarios offline — capa demo local.')
+        setMsg('API escenarios no conectada — se muestran datos demo coherentes del territorio.')
       }
 
       const status = await fetchGeeStatus()
@@ -97,6 +103,7 @@ export function VisorPage() {
         }
         setTileUrls({ ...urls })
       }
+      setBooting(false)
     })()
   }, [])
 
@@ -107,6 +114,7 @@ export function VisorPage() {
     }
     let cancelled = false
     void (async () => {
+      setMapLoading(true)
       try {
         const gj = await fetchMapa(selectedId)
         if (!cancelled) {
@@ -117,10 +125,12 @@ export function VisorPage() {
           setGeojson(DEMO_GEOJSON)
           setMsg(
             err instanceof Error
-              ? `Mapa escenario falló (${err.message}) — demo.`
-              : 'Mapa escenario falló — demo.',
+              ? `Mapa del escenario no disponible (${err.message}). Capa demo de Valles activa.`
+              : 'Mapa del escenario no disponible. Capa demo de Valles activa.',
           )
         }
+      } finally {
+        if (!cancelled) setMapLoading(false)
       }
     })()
     return () => {
@@ -235,6 +245,14 @@ export function VisorPage() {
             </select>
           </label>
 
+          {(booting || mapLoading) && (
+            <div className="mb-2">
+              <StatusLine loading tone="info">
+                {booting ? 'Cargando catálogo GEE y escenarios…' : 'Actualizando mapa del escenario…'}
+              </StatusLine>
+            </div>
+          )}
+
           <div className="mb-2 flex flex-wrap gap-3 text-xs">
             <label className="inline-flex items-center gap-1.5">
               <input
@@ -242,7 +260,7 @@ export function VisorPage() {
                 checked={showExclusion}
                 onChange={(e) => setShowExclusion(e.target.checked)}
               />
-              Exclusión CLP
+              Exclusión
             </label>
             <label className="inline-flex items-center gap-1.5">
               <input
@@ -250,7 +268,15 @@ export function VisorPage() {
                 checked={showAptitud}
                 onChange={(e) => setShowAptitud(e.target.checked)}
               />
-              Aptitud CLP
+              Aptitud (6 clases)
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={showCandidatos}
+                onChange={(e) => setShowCandidatos(e.target.checked)}
+              />
+              Candidatos
             </label>
           </div>
 
@@ -301,15 +327,11 @@ export function VisorPage() {
           </label>
 
           {(geeMsg || msg) && (
-            <p
-              className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[0.7rem] leading-snug text-slate-600"
-              role="status"
-            >
-              {geeMode !== 'ready' && (
-                <span className="font-medium text-slate-700">Modo limitado · </span>
-              )}
-              {geeMsg ?? msg}
-            </p>
+            <div className="mt-2">
+              <StatusLine tone={geeMode === 'ready' ? 'ok' : 'warn'}>
+                {geeMsg ?? msg}
+              </StatusLine>
+            </div>
           )}
         </div>
       </div>
@@ -322,6 +344,8 @@ export function VisorPage() {
           clickMarker={clickPoint}
           showExclusion={showExclusion}
           showAptitud={showAptitud}
+          showCandidatos={showCandidatos}
+          candidatos={DEMO_CANDIDATOS}
           geeLayers={geeXyzLayers}
           fullscreen
         />

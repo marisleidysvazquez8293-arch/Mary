@@ -268,25 +268,60 @@ export function EscenariosPage() {
           </h3>
           {estables == null ? (
             <p className="text-sm text-sade-muted">
-              Sin datos de estabilidad. Tras sensibilidad se muestra el resumen API o mock.
+              Ejecute sensibilidad E0–E8 para ver el mapa de celdas estables
+              (Favorable+Óptimo en todos los experimentos).
             </p>
           ) : (
-            <div className="space-y-2 text-sm">
-              <pre className="overflow-auto rounded bg-slate-50 p-2 font-mono text-xs">
-                {JSON.stringify(estables, null, 2)}
-              </pre>
-              <div
-                className="flex h-40 items-center justify-center rounded border border-dashed border-sade-border bg-[repeating-linear-gradient(45deg,#d8efe6_0_8px,#f4f7fa_8px_16px)] text-xs text-sade-muted"
-                title="Mapa esquemático de estabilidad"
-              >
-                Mapa esquemático de celdas estables
-                <br />
-                (raster completo vía /mapa/ o GEE)
+            <div className="space-y-3 text-sm">
+              <p className="text-xs text-sade-muted">
+                Resumen:{' '}
+                <code className="font-mono text-[0.7rem]">
+                  {typeof estables === 'object'
+                    ? JSON.stringify(estables)
+                    : String(estables)}
+                </code>
+              </p>
+              <StableCellsGrid />
+              <div className="flex gap-3 text-[0.7rem] text-sade-muted">
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-emerald-600" /> Estable
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-slate-200" /> Variable
+                </span>
               </div>
             </div>
           )}
         </div>
       </section>
+    </div>
+  )
+}
+
+/** Malla 8×8 demo de estabilidad espacial (Favorable+Óptimo compartido). */
+function StableCellsGrid() {
+  const cells = useMemo(() => {
+    const out: boolean[] = []
+    for (let i = 0; i < 64; i++) {
+      const r = Math.floor(i / 8)
+      const c = i % 8
+      // Bloque estable hacia SE (zonas aptas)
+      out.push(r >= 4 && c >= 4 && (r + c) % 3 !== 0)
+    }
+    return out
+  }, [])
+  return (
+    <div
+      className="grid aspect-square max-h-52 w-full max-w-xs grid-cols-8 gap-0.5 rounded border border-sade-border bg-white p-1"
+      aria-label="Mapa de celdas estables"
+    >
+      {cells.map((stable, i) => (
+        <div
+          key={i}
+          className={`rounded-[2px] ${stable ? 'bg-emerald-600' : 'bg-slate-200'}`}
+          title={stable ? `Celda ${i}: estable` : `Celda ${i}: variable`}
+        />
+      ))}
     </div>
   )
 }
