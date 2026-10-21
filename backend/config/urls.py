@@ -1,8 +1,8 @@
-"""SADE URL configuration — PASO 1 stub (no API views yet)."""
+"""SADE URL configuration — API under /api/ (PASO 4)."""
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # PASO 2+: DRF routers for adquisicion, reglas, multicriterio, escenarios, etc.
+    path("api/", include("apps.escenarios.urls")),
 ]

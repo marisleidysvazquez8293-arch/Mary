@@ -1,6 +1,17 @@
 """
-Usuarios / RBAC (ADM) — stub de paquete para alinear layout con el ERS.
+Usuarios / RBAC (ADM) — thin PASO 4 stubs.
 
-PASO 1 scope stops at adquisicion / reglas / multicriterio / escenarios models.
-Prefer django.contrib.auth for now; thin Usuario/Rol stubs are deferred.
+Prefer django.contrib.auth User + Groups named after apps.usuarios.roles.
+No custom Usuario table yet; RoleLabel documents ERS role names for admin.
 """
+from django.db import models
+
+from apps.usuarios.roles import ALL_ROLES
+
+
+class RoleLabel(models.TextChoices):
+    """ERS role names — use as Django Group.name values."""
+
+    ADMINISTRADOR_TECNICO = ALL_ROLES[0], ALL_ROLES[0]
+    ANALISTA_TERRITORIAL = ALL_ROLES[1], ALL_ROLES[1]
+    AUDITOR = ALL_ROLES[2], ALL_ROLES[2]

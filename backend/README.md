@@ -9,21 +9,22 @@ This Django project lives under `backend/` alongside the existing CodeIgniter PH
 | Component | Version / note |
 |-----------|----------------|
 | Django | 4.2+ (tested with 5.0.x) |
-| Django REST Framework | for future API (PASO 2+) |
+| Django REST Framework | `/api/` (PASO 4) |
 | PostgreSQL | 15 |
-| PostGIS | required (`django.contrib.gis`) |
+| PostGIS | required for production GIS |
 | CRS | **EPSG:32613** (UTM Zone 13N) for spatial analysis |
+| numpy | engine + demo rasters |
 
 ## Apps (`backend/apps/`)
 
-| App | PASO 1 |
-|-----|--------|
+| App | Role |
+|-----|------|
 | `adquisicion` | `CapaGeoespacial` |
-| `reglas` | `Criterio`, `Regla` |
-| `multicriterio` | `ConjuntoPesosAHP`, `PesoCriterio` |
-| `escenarios` | `Escenario` |
-| `visualizacion` | stub only |
-| `usuarios` | stub only |
+| `reglas` | `Criterio`, `Regla`, `ReglasEngineService` |
+| `multicriterio` | AHP / CLP services + weights |
+| `escenarios` | `Escenario`, execution API |
+| `visualizacion` | stub |
+| `usuarios` | RBAC role hooks (Groups) |
 
 ## Setup
 
@@ -32,11 +33,12 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# System packages: PostgreSQL 15 + PostGIS, GDAL, GEOS
+# Production DB: PostgreSQL 15 + PostGIS, GDAL, GEOS
 export POSTGRES_DB=sade POSTGRES_USER=sade POSTGRES_PASSWORD=sade
 export POSTGRES_HOST=localhost POSTGRES_PORT=5432
 
 python manage.py migrate
+python manage.py load_initial_rules
 python manage.py createsuperuser
 python manage.py runserver
 ```
@@ -46,48 +48,117 @@ Admin: http://127.0.0.1:8000/admin/
 ## PASO 2 — seed data
 
 ```bash
-python manage.py migrate
 python manage.py load_initial_rules          # idempotent
 python manage.py load_initial_rules --dry-run
 ```
 
-Loads **21 criterios** + default `Regla` v1.0.0 and one `ConjuntoPesosAHP`
-(Apéndice B block weights: GEO 36.54%, ECO 31.01%, SOC 32.45%).
-
-**Placeholder pending thesis PDF:** Tabla 4.1 / Apéndice B text is not in the
-repo. Seed ids are NOM-083-aligned placeholders:
-
-`GEO_01`–`GEO_07`, `ECO_01`–`ECO_07`, `SOC_01`–`SOC_07`
-
-Notable NOM-083 parameters in `parametros_json`: 500 m water/wells/urban,
-aerodrome warning &lt;13 km (`SOC_02`). CR fields are `0.0` until AHPService.
-
-Data module: `apps/reglas/data/initial_rules.py`
+21 placeholder criterios (`GEO_01`–`07`, `ECO_01`–`07`, `SOC_01`–`07`) + AHP block
+weights 36.54 / 31.01 / 32.45%. **Placeholder pending thesis PDF.**
 
 ## PASO 3 — engine services
 
-| Service | Module | Role |
-|---------|--------|------|
-| `ReglasEngineService` | `apps/reglas/services.py` | Exclusion mask ∏ c_j, 500 m buffers, aerodrome warnings |
-| `AHPService` | `apps/multicriterio/services.py` | Eigenvector, CR=IC/IA, AIJ geometric mean |
-| `CLPService` | `apps/multicriterio/services.py` | S=(∑ w·x)·∏c, 6-class reclass, candidate stubs |
+| Service | Module |
+|---------|--------|
+| `ReglasEngineService` | `apps/reglas/services.py` |
+| `AHPService` / `CLPService` | `apps/multicriterio/services.py` |
 
-### Tests (no PostGIS required)
+## PASO 4 — REST API & audit
+
+Base path: **`/api/`**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health/` | Smoke check (no auth) |
+| GET | `/api/escenarios/` | List escenarios |
+| GET | `/api/escenarios/{id}/` | Detail |
+| POST | `/api/escenarios/ejecutar/` | Run Reglas+CLP; persist hashes |
+| POST | `/api/escenarios/{id}/reejecutar/` | Re-run; compare `hash_resultado` |
+| POST | `/api/escenarios/sensibilidad/` | E0–E8 + Jaccard matrix |
+| GET | `/api/escenarios/{id}/geojson/` | Class cell polygons (EPSG:32613 grid) |
+| GET | `/api/escenarios/{id}/tilejson/` | TileJSON stub → points at GeoJSON |
+| GET | `/api/escenarios/{id}/tiles/{z}/{x}/{y}.png` | Tile stub (**501**) |
+
+### Try it (session auth / browsable API)
+
+```bash
+# 1) migrate + seed + superuser, then runserver
+python manage.py runserver
+
+# 2) In another shell (Basic auth example):
+curl -u admin:PASSWORD http://127.0.0.1:8000/api/health/
+
+# Assign Django Groups named exactly:
+#   "Administrador Técnico" | "Analista Territorial" | "Auditor"
+
+# Execute (Analista / Admin Técnico):
+curl -u analista:PASSWORD -H 'Content-Type: application/json' \
+  -d '{
+    "nombre": "Demo E0",
+    "version_reglas_usada": "1.0.0",
+    "conjunto_pesos_id": 1,
+    "parametros_ejecucion": {
+      "demo_seed": 42,
+      "shape": [8, 8],
+      "weights": [0.4, 0.3, 0.3]
+    },
+    "weights_from_db": false
+  }' \
+  http://127.0.0.1:8000/api/escenarios/ejecutar/
+
+# Re-execute:
+curl -u analista:PASSWORD -X POST \
+  http://127.0.0.1:8000/api/escenarios/1/reejecutar/
+
+# Sensitivity E0–E8:
+curl -u analista:PASSWORD -H 'Content-Type: application/json' \
+  -d '{"conjunto_pesos_id": 1, "parametros_ejecucion": {"demo_seed": 42, "weights": [0.4, 0.3, 0.3]}}' \
+  http://127.0.0.1:8000/api/escenarios/sensibilidad/
+
+# Maps:
+curl -u auditor:PASSWORD http://127.0.0.1:8000/api/escenarios/1/geojson/
+curl -u auditor:PASSWORD http://127.0.0.1:8000/api/escenarios/1/tilejson/
+```
+
+Without live GIS layers, `parametros_ejecucion` uses **deterministic demo rasters**
+(`demo_seed` / `shape` / `weights`) so executions are repeatable in CI.
+
+### Hash scheme (audit)
+
+Implemented in `apps/escenarios/hashing.py`:
+
+- **`hash_configuracion`** — SHA-256 of canonical JSON  
+  `{version_reglas_usada, conjunto_pesos_id, parametros_ejecucion}`  
+  (keys sorted, compact separators). Same config → same hash; execute is
+  idempotent on this key.
+
+- **`hash_resultado`** — SHA-256 of canonical JSON of persisted
+  `resultados_json` (class maps, counts, geojson, candidates, …).
+
+Re-execute reports `resultado_reproducido` when the new result hash matches
+the previous one (bit-stable pipeline for the same config).
+
+### RBAC (thin)
+
+Django `Group.name` values (`apps/usuarios/roles.py`):
+
+| Role | execute / reejecutar | sensibilidad / map / audit |
+|------|----------------------|----------------------------|
+| Administrador Técnico | ✓ | ✓ |
+| Analista Territorial | ✓ | ✓ |
+| Auditor | ✗ | ✓ |
+
+Permissions: `apps/usuarios/permissions.py`.
+
+## Tests (no PostGIS required)
 
 ```bash
 cd backend
-pip install -r requirements.txt
-
-# Recommended (sqlite test settings):
 DJANGO_SETTINGS_MODULE=config.settings_test python manage.py test \
-  apps.multicriterio.tests apps.reglas.tests -v2
-
-# Or pure unittest discovery:
-PYTHONPATH=. python -m unittest discover -s apps -p 'test_*.py' -v
+  apps.escenarios.tests apps.multicriterio.tests apps.reglas.tests -v2
 ```
 
-## Out of scope (through PASO 3)
+## Remaining / deferred
 
-- PASO 4: DRF endpoints / serializers
-- GeometryField footprints; full shapely/rasterio/GEE backends (stubs only)
-- Full VIS / RBAC models
+- Real XYZ/COG tiling (TileJSON currently stubs with HTTP 501 on tile URLs)
+- shapely dissolve of class polygons; GEE live hooks
+- Full custom Usuario model (Groups are enough for v1)
