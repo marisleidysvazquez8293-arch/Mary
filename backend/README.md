@@ -43,8 +43,29 @@ python manage.py runserver
 
 Admin: http://127.0.0.1:8000/admin/
 
-## Out of scope (PASO 1)
+## PASO 2 — seed data
 
-- `load_initial_rules`, domain services, DRF views/serializers
+```bash
+python manage.py migrate
+python manage.py load_initial_rules          # idempotent
+python manage.py load_initial_rules --dry-run
+```
+
+Loads **21 criterios** + default `Regla` v1.0.0 and one `ConjuntoPesosAHP`
+(Apéndice B block weights: GEO 36.54%, ECO 31.01%, SOC 32.45%).
+
+**Placeholder pending thesis PDF:** Tabla 4.1 / Apéndice B text is not in the
+repo. Seed ids are NOM-083-aligned placeholders:
+
+`GEO_01`–`GEO_07`, `ECO_01`–`ECO_07`, `SOC_01`–`SOC_07`
+
+Notable NOM-083 parameters in `parametros_json`: 500 m water/wells/urban,
+aerodrome warning &lt;13 km (`SOC_02`). CR fields are `0.0` until AHPService.
+
+Data module: `apps/reglas/data/initial_rules.py`
+
+## Out of scope (PASO 1–2)
+
+- Domain services (`AHPService`, suitability engines), DRF views/serializers
 - GeometryField footprints (metadata SRID is ready; GIS fields later)
 - Full VIS / RBAC models
