@@ -1,8 +1,10 @@
 import { buildMockCelda } from '../data/mockCelda'
 import type {
+  ConsultaCeldaQuery,
   ConsultaCeldaResponse,
   Escenario,
   EjecutarPayload,
+  HashResponse,
   MapaResponse,
   ReejecutarResponse,
   SadeFeatureCollection,
@@ -53,6 +55,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+async function requestBlob(
+  path: string,
+  accept: string,
+): Promise<Blob> {
+  const url = `${apiBase()}${path}`
+  const res = await fetch(url, {
+    headers: { ...authHeaders(), Accept: accept },
+  })
+  if (!res.ok) {
+    throw new Error(`API ${res.status}: ${res.statusText}`)
+  }
+  return res.blob()
+}
+
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
   return request('/api/health/')
 }
@@ -81,12 +97,26 @@ export async function reejecutarEscenario(id: number): Promise<ReejecutarRespons
   })
 }
 
+/** POST /api/escenarios/sensibilidad/ */
 export async function sensibilidadEscenario(
   payload: SensibilidadPayload,
 ): Promise<SensibilidadReport> {
   return request('/api/escenarios/sensibilidad/', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+/** GET /api/escenarios/{id}/hash/ */
+export async function fetchHash(id: number): Promise<HashResponse> {
+  return request(`/api/escenarios/${id}/hash/`)
+}
+
+/** POST /api/escenarios/{id}/hash/?actualizar=1 */
+export async function actualizarHash(id: number): Promise<HashResponse> {
+  return request(`/api/escenarios/${id}/hash/?actualizar=1`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   })
 }
 
@@ -98,10 +128,7 @@ export async function fetchTileJson(id: number): Promise<TileJsonStub> {
   return request(`/api/escenarios/${id}/tilejson/`)
 }
 
-/**
- * GET /api/escenarios/{id}/mapa/
- * Preferido frente a geojson suelto; hace fallback a /geojson/.
- */
+/** GET /api/escenarios/{id}/mapa/ — fallback a /geojson/. */
 export async function fetchMapa(id: number): Promise<SadeFeatureCollection> {
   try {
     const data = await request<MapaResponse | SadeFeatureCollection>(
@@ -118,81 +145,98 @@ export async function fetchMapa(id: number): Promise<SadeFeatureCollection> {
   return fetchGeoJson(id)
 }
 
-/**
- * GET /api/escenarios/{id}/celda/?lat=&lon=
- * TODO: confirmar path/params en sade-paso4-api-contrato.md cuando el backend lo publique.
- * Si 404/501/offline → mock demo.
- */
-export async function fetchConsultaCelda(
-  escenarioId: number,
-  lat: number,
-  lon: number,
-): Promise<ConsultaCeldaResponse> {
-  const q = new URLSearchParams({
-    lat: String(lat),
-    lon: String(lon),
-  })
-  try {
-    const data = await request<ConsultaCeldaResponse>(
-      `/api/escenarios/${escenarioId}/celda/?${q.toString()}`,
-    )
-    return { ...data, fuente: data.fuente ?? 'api' }
-  } catch {
-    return buildMockCelda(escenarioId, lat, lon)
+function queryToParams(q: ConsultaCeldaQuery): URLSearchParams {
+  if ('lat' in q) {
+    return new URLSearchParams({ lat: String(q.lat), lon: String(q.lon) })
   }
+  if ('row' in q) {
+    return new URLSearchParams({ row: String(q.row), col: String(q.col) })
+  }
+  return new URLSearchParams({ x: String(q.x), y: String(q.y) })
 }
 
 /**
- * GET /api/escenarios/{id}/expediente.pdf
- * TODO: endpoint previsto; descarga mock (texto) si no existe.
+ * GET /api/escenarios/{id}/consulta-celda/?lat=&lon= | row=&col= | x=&y=
+ * Si la API falla → mock con mensaje claro.
  */
-export async function downloadExpedientePdf(id: number): Promise<{ blob: Blob; mock: boolean }> {
-  const url = `${apiBase()}/api/escenarios/${id}/expediente.pdf`
+export async function fetchConsultaCelda(
+  escenarioId: number,
+  query: ConsultaCeldaQuery,
+): Promise<ConsultaCeldaResponse> {
+  const params = queryToParams(query)
   try {
-    const res = await fetch(url, { headers: { ...authHeaders(), Accept: 'application/pdf' } })
-    if (!res.ok) throw new Error(String(res.status))
-    return { blob: await res.blob(), mock: false }
-  } catch {
-    const text = [
-      'SADE — Expediente de escenario (DEMO)',
-      `Escenario ID: ${id}`,
-      '',
-      'TODO: conectar a GET /api/escenarios/{id}/expediente.pdf',
-      'cuando el backend lo publique (ver sade-paso4-api-contrato.md).',
-      '',
-      'Este archivo es un marcador generado por el frontend.',
-    ].join('\n')
+    const data = await request<ConsultaCeldaResponse>(
+      `/api/escenarios/${escenarioId}/consulta-celda/?${params.toString()}`,
+    )
+    return { ...data, fuente: data.fuente ?? 'api' }
+  } catch (err) {
+    const motivo =
+      err instanceof Error
+        ? err.message
+        : 'API de consulta-celda no disponible'
+    if ('lat' in query) {
+      const mock = buildMockCelda(escenarioId, query.lat, query.lon)
+      return { ...mock, mock_motivo: motivo }
+    }
+    // row/col o x/y sin lat/lon: mock sintético con coords derivadas
+    const lat = 'row' in query ? 20.5 + query.row * 0.01 : 20.6
+    const lon = 'col' in query ? -104.0 + query.col * 0.01 : -103.9
+    const mock = buildMockCelda(escenarioId, lat, lon)
     return {
-      blob: new Blob([text], { type: 'text/plain;charset=utf-8' }),
-      mock: true,
+      ...mock,
+      row: 'row' in query ? query.row : mock.row,
+      col: 'col' in query ? query.col : mock.col,
+      mock_motivo: motivo,
     }
   }
 }
 
-/**
- * GET /api/escenarios/{id}/reproducibilidad.zip
- * TODO: endpoint previsto; descarga mock si no existe.
- */
-export async function downloadReproducibilidadZip(
-  id: number,
-): Promise<{ blob: Blob; mock: boolean }> {
-  const url = `${apiBase()}/api/escenarios/${id}/reproducibilidad.zip`
+/** GET /api/escenarios/{id}/pdf/ — expediente. Mock solo si falla. */
+export async function downloadExpedientePdf(id: number): Promise<{ blob: Blob; mock: boolean; motivo?: string }> {
   try {
-    const res = await fetch(url, {
-      headers: { ...authHeaders(), Accept: 'application/zip' },
-    })
-    if (!res.ok) throw new Error(String(res.status))
-    return { blob: await res.blob(), mock: false }
-  } catch {
+    const blob = await requestBlob(`/api/escenarios/${id}/pdf/`, 'application/pdf')
+    return { blob, mock: false }
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : 'API /pdf/ no disponible'
     const text = [
-      'SADE — Paquete de reproducibilidad (DEMO)',
+      'SADE — Expediente de escenario (FALLBACK DEMO)',
       `Escenario ID: ${id}`,
+      `Motivo: ${motivo}`,
       '',
-      'TODO: conectar a GET /api/escenarios/{id}/reproducibilidad.zip',
+      'Path real: GET /api/escenarios/{id}/pdf/',
+      'Reintente con backend + autenticación SADE.',
     ].join('\n')
     return {
       blob: new Blob([text], { type: 'text/plain;charset=utf-8' }),
       mock: true,
+      motivo,
+    }
+  }
+}
+
+/** GET /api/escenarios/{id}/reproducibilidad/ — ZIP RNF-002. Mock solo si falla. */
+export async function downloadReproducibilidadZip(
+  id: number,
+): Promise<{ blob: Blob; mock: boolean; motivo?: string }> {
+  try {
+    const blob = await requestBlob(
+      `/api/escenarios/${id}/reproducibilidad/`,
+      'application/zip',
+    )
+    return { blob, mock: false }
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : 'API /reproducibilidad/ no disponible'
+    const text = [
+      'SADE — Paquete de reproducibilidad (FALLBACK DEMO)',
+      `Escenario ID: ${id}`,
+      `Motivo: ${motivo}`,
+      '',
+      'Path real: GET /api/escenarios/{id}/reproducibilidad/',
+    ].join('\n')
+    return {
+      blob: new Blob([text], { type: 'text/plain;charset=utf-8' }),
+      mock: true,
+      motivo,
     }
   }
 }

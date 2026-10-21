@@ -1,5 +1,5 @@
 import { VERSIONES_REGLAS } from '../constants/criterios'
-import type { Escenario, SensibilidadReport } from '../types/api'
+import type { Escenario, HashResponse, SensibilidadReport } from '../types/api'
 
 export interface GestorEscenariosProps {
   escenarios: Escenario[]
@@ -13,6 +13,7 @@ export interface GestorEscenariosProps {
   versionReglas: string
   conjuntoPesosId: number
   sensibilidad: SensibilidadReport | null
+  hashInfo: HashResponse | null
   onVersionChange: (v: string) => void
   onPesosChange: (id: number) => void
   onRefresh: () => void
@@ -53,6 +54,7 @@ export function GestorEscenarios({
   versionReglas,
   conjuntoPesosId,
   sensibilidad,
+  hashInfo,
   onVersionChange,
   onPesosChange,
   onRefresh,
@@ -195,19 +197,33 @@ export function GestorEscenarios({
               <div className="trace__row">
                 <dt>Hash config.</dt>
                 <dd>
-                  <code title={selected.hash_configuracion}>
-                    {shortHash(selected.hash_configuracion)}
+                  <code title={hashInfo?.hash_configuracion ?? selected.hash_configuracion}>
+                    {shortHash(hashInfo?.hash_configuracion ?? selected.hash_configuracion)}
+                  </code>
+                </dd>
+              </div>
+              <div className="trace__row">
+                <dt>Hash trazab.</dt>
+                <dd>
+                  <code title={hashInfo?.hash_trazabilidad ?? '—'}>
+                    {shortHash(hashInfo?.hash_trazabilidad)}
                   </code>
                 </dd>
               </div>
               <div className="trace__row">
                 <dt>Hash resultado</dt>
                 <dd>
-                  <code title={selected.hash_resultado}>
-                    {shortHash(selected.hash_resultado)}
+                  <code title={hashInfo?.hash_resultado ?? selected.hash_resultado}>
+                    {shortHash(hashInfo?.hash_resultado ?? selected.hash_resultado)}
                   </code>
                 </dd>
               </div>
+              {hashInfo && (
+                <div className="trace__row">
+                  <dt>Coincide</dt>
+                  <dd>{hashInfo.coincide_persistido ? 'Sí' : 'No'}</dd>
+                </div>
+              )}
             </dl>
             <div className="panel__actions">
               <button
@@ -222,7 +238,7 @@ export function GestorEscenarios({
                 type="button"
                 className="btn btn--ghost"
                 onClick={onDescargarPdf}
-                title="GET /api/escenarios/{id}/expediente.pdf"
+                title="GET /api/escenarios/{id}/pdf/"
               >
                 PDF expediente
               </button>
@@ -230,13 +246,15 @@ export function GestorEscenarios({
                 type="button"
                 className="btn btn--ghost"
                 onClick={onDescargarZip}
-                title="GET /api/escenarios/{id}/reproducibilidad.zip"
+                title="GET /api/escenarios/{id}/reproducibilidad/"
               >
                 ZIP reproducib.
               </button>
             </div>
             <p className="panel__footer-note">
-              TODO: PDF/ZIP usan mock si el backend aún no publica esos paths.
+              Paths contrato: <code>/hash/</code>, <code>/pdf/</code>,{' '}
+              <code>/reproducibilidad/</code>, <code>/consulta-celda/</code>. Fallback mock solo
+              si la API falla.
             </p>
           </>
         ) : (

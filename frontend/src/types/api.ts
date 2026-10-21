@@ -1,4 +1,4 @@
-/** Contratos PASO 4 — alineados al backend actual + TODOs de endpoints previstos. */
+/** Contratos PASO 4 — alineados a `internal/sade-paso4-api-contrato.md`. */
 
 export interface Escenario {
   id: number
@@ -32,9 +32,11 @@ export interface ReejecutarResponse {
   resultado_reproducido: boolean
 }
 
+/** POST /api/escenarios/sensibilidad/ */
 export interface SensibilidadPayload {
   version_reglas_usada?: string
   conjunto_pesos_id: number
+  escenario_base_id?: number
   parametros_ejecucion?: Record<string, unknown>
   persist?: boolean
 }
@@ -43,6 +45,8 @@ export interface SensibilidadReport {
   baseline_id: string
   notes: string | string[]
   experiments: Array<Record<string, unknown>>
+  jaccard_vs_e0?: Array<Record<string, unknown>>
+  zonas_estables_favorable_optimo?: unknown
   pairwise_jaccard: Array<{
     scenario_a: string
     scenario_b: string
@@ -50,6 +54,14 @@ export interface SensibilidadReport {
     intersection_cells: number
     union_cells: number
   }>
+}
+
+/** GET|POST /api/escenarios/{id}/hash/ */
+export interface HashResponse {
+  hash_configuracion: string
+  hash_trazabilidad: string
+  hash_resultado: string
+  coincide_persistido: boolean
 }
 
 export interface SadeGeoJsonProperties {
@@ -93,40 +105,41 @@ export interface MapaResponse {
 
 export interface FactorCelda {
   id_criterio: string
-  nombre: string
-  bloque: string
-  /** Factor xᵢ en escala 0–5 (o 0–1 según motor). */
+  nombre?: string
+  bloque?: string
   valor_factor: number
   peso: number
-  contribucion: number
-  restriccion_activa: boolean
-  /** Mensaje de regla aplicada. */
+  contribucion?: number
+  restriccion_activa?: boolean
+  umbrales?: Record<string, unknown>
   detalle?: string
 }
 
 /**
- * GET /api/escenarios/{id}/celda/?lat=&lon=
- * TODO: confirmar query params exactos cuando exista
- * `/cursor/stores/self/internal/sade-paso4-api-contrato.md`
+ * GET /api/escenarios/{id}/consulta-celda/
+ * Query: lat+lon | x+y (EPSG:32613) | row+col
  */
 export interface ConsultaCeldaResponse {
-  escenario_id: number
-  lat: number
-  lon: number
+  escenario_id?: number
+  lat?: number
+  lon?: number
+  row?: number
+  col?: number
   class_code: number
   class_label: string
   suitability: number
-  excluido: boolean
+  excluido?: boolean
   factores: FactorCelda[]
-  restricciones: string[]
-  advertencias: string[]
-  /** NOM-083 6.1.1 — no excluye, solo advierte. */
+  restricciones: string[] | Array<Record<string, unknown>>
+  advertencias: string[] | Array<Record<string, unknown>>
   advertencia_aerodromo?: {
     aplica: boolean
     distancia_km?: number
     mensaje: string
   }
   fuente?: 'api' | 'mock'
+  /** Motivo del fallback mock (si aplica). */
+  mock_motivo?: string
 }
 
 export interface ConjuntoPesosOption {
@@ -134,3 +147,8 @@ export interface ConjuntoPesosOption {
   nombre: string
   descripcion?: string
 }
+
+export type ConsultaCeldaQuery =
+  | { lat: number; lon: number }
+  | { row: number; col: number }
+  | { x: number; y: number }

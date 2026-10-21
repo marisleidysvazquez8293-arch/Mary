@@ -53,7 +53,7 @@ export function buildMockCelda(
   const excluido = factores.some((f) => f.restriccion_activa)
   const S = excluido
     ? 0
-    : factores.reduce((acc, f) => acc + f.contribucion, 0)
+    : factores.reduce((acc, f) => acc + (f.contribucion ?? 0), 0)
   // Escala demo 0–5 → class_code aproximado
   let class_code = 5
   if (excluido || S <= 1e-9) class_code = 0

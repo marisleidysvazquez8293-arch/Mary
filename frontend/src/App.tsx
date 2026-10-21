@@ -6,6 +6,7 @@ import {
   downloadReproducibilidadZip,
   ejecutarEscenario,
   fetchConsultaCelda,
+  fetchHash,
   fetchHealth,
   fetchMapa,
   listEscenarios,
@@ -20,6 +21,7 @@ import { DEMO_GEOJSON } from './data/demoGeoJson'
 import type {
   ConsultaCeldaResponse,
   Escenario,
+  HashResponse,
   SadeFeatureCollection,
   SensibilidadReport,
 } from './types/api'
@@ -37,6 +39,7 @@ export default function App() {
   const [versionReglas, setVersionReglas] = useState('1.0.0')
   const [conjuntoPesosId, setConjuntoPesosId] = useState(demoConjuntoPesosId())
   const [sensibilidad, setSensibilidad] = useState<SensibilidadReport | null>(null)
+  const [hashInfo, setHashInfo] = useState<HashResponse | null>(null)
   const [celda, setCelda] = useState<ConsultaCeldaResponse | null>(null)
   const [celdaLoading, setCeldaLoading] = useState(false)
   const [clickPoint, setClickPoint] = useState<MapClickPayload | null>(null)
@@ -77,6 +80,7 @@ export default function App() {
     if (selectedId == null) {
       setGeojson(DEMO_GEOJSON)
       setUsingDemoLayer(true)
+      setHashInfo(null)
       return
     }
 
@@ -100,6 +104,13 @@ export default function App() {
           setGeojson(DEMO_GEOJSON)
           setUsingDemoLayer(true)
         }
+      }
+
+      try {
+        const h = await fetchHash(selectedId)
+        if (!cancelled) setHashInfo(h)
+      } catch {
+        if (!cancelled) setHashInfo(null)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -176,6 +187,7 @@ export default function App() {
       const report = await sensibilidadEscenario({
         version_reglas_usada: versionReglas,
         conjunto_pesos_id: conjuntoPesosId,
+        escenario_base_id: selectedId ?? undefined,
         parametros_ejecucion: {
           demo_seed: 1,
           shape: [6, 6],
@@ -203,12 +215,14 @@ export default function App() {
     setCeldaLoading(true)
     const id = selectedId ?? 0
     try {
-      const data = await fetchConsultaCelda(id, p.lat, p.lon)
+      const data = await fetchConsultaCelda(id, { lat: p.lat, lon: p.lon })
       setCelda(data)
       if (data.fuente === 'mock') {
         setInfo(
-          'Desglose de celda en modo demo (endpoint /celda/ no disponible o sin auth).',
+          `Consulta-celda en fallback mock: ${data.mock_motivo ?? 'API no disponible'}. Path: GET /api/escenarios/{id}/consulta-celda/?lat=&lon=`,
         )
+      } else {
+        setInfo(null)
       }
     } finally {
       setCeldaLoading(false)
@@ -217,21 +231,21 @@ export default function App() {
 
   const onDescargarPdf = async () => {
     if (selectedId == null) return
-    const { blob, mock } = await downloadExpedientePdf(selectedId)
+    const { blob, mock, motivo } = await downloadExpedientePdf(selectedId)
     triggerDownload(
       blob,
       mock ? `expediente-escenario-${selectedId}-DEMO.txt` : `expediente-escenario-${selectedId}.pdf`,
     )
     setInfo(
       mock
-        ? 'PDF no disponible en API: se descargó marcador DEMO. TODO: /expediente.pdf'
-        : 'Expediente PDF descargado.',
+        ? `PDF fallback demo (GET …/pdf/ falló: ${motivo ?? 'sin detalle'}).`
+        : 'Expediente PDF descargado (GET …/pdf/).',
     )
   }
 
   const onDescargarZip = async () => {
     if (selectedId == null) return
-    const { blob, mock } = await downloadReproducibilidadZip(selectedId)
+    const { blob, mock, motivo } = await downloadReproducibilidadZip(selectedId)
     triggerDownload(
       blob,
       mock
@@ -240,8 +254,8 @@ export default function App() {
     )
     setInfo(
       mock
-        ? 'ZIP no disponible en API: se descargó marcador DEMO. TODO: /reproducibilidad.zip'
-        : 'Paquete de reproducibilidad descargado.',
+        ? `ZIP fallback demo (GET …/reproducibilidad/ falló: ${motivo ?? 'sin detalle'}).`
+        : 'ZIP de reproducibilidad descargado (GET …/reproducibilidad/).',
     )
   }
 
@@ -259,6 +273,7 @@ export default function App() {
         versionReglas={versionReglas}
         conjuntoPesosId={conjuntoPesosId}
         sensibilidad={sensibilidad}
+        hashInfo={hashInfo}
         onVersionChange={setVersionReglas}
         onPesosChange={setConjuntoPesosId}
         onRefresh={() => void refreshList()}

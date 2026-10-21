@@ -101,18 +101,17 @@ frontend/
 | `ConsultaCelda` | Desglose de 21 factores, restricciones y advertencia aeródromo |
 | `GestorEscenarios` | Versión de reglas, pesos AHP, ejecutar, sensibilidad, PDF/ZIP |
 
-### Endpoints consumidos / previstos
+### Endpoints (contrato `sade-paso4-api-contrato.md`)
 
 | Método | Path | Estado en UI |
 |--------|------|--------------|
 | POST | `/api/escenarios/ejecutar/` | Activo |
 | POST | `/api/escenarios/sensibilidad/` | Activo |
+| GET/POST | `/api/escenarios/{id}/hash/` | Activo (trazabilidad) |
 | GET | `/api/escenarios/{id}/mapa/` | Activo (fallback `/geojson/`) |
-| GET | `/api/escenarios/{id}/celda/?lat=&lon=` | **TODO** backend → mock demo |
-| GET | `/api/escenarios/{id}/expediente.pdf` | **TODO** → descarga marcador |
-| GET | `/api/escenarios/{id}/reproducibilidad.zip` | **TODO** → descarga marcador |
-
-Cuando exista `/cursor/stores/self/internal/sade-paso4-api-contrato.md`, alinear paths/params.
+| GET | `/api/escenarios/{id}/consulta-celda/?lat=&lon=` (o `row`/`col`) | Activo; mock solo si falla |
+| GET | `/api/escenarios/{id}/pdf/` | Activo; mock solo si falla |
+| GET | `/api/escenarios/{id}/reproducibilidad/` | Activo (ZIP); mock solo si falla |
 
 ## Docker
 
