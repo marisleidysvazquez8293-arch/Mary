@@ -1,10 +1,12 @@
-# SADE v1.0 — Django GIS stack (PASO 1–4)
+# SADE v1.0 — Django GIS stack (PASO 1–4 + GEE)
 Django>=4.2,<5.1
 djangorestframework>=3.14
 psycopg[binary]>=3.1
 numpy>=1.24
 reportlab>=4.0
 gunicorn>=21.0
+earthengine-api>=0.1.384
+google-auth>=2.0
 # Optional GIS (not required for unit tests of AHP/CLP/ReglasEngine):
 # shapely>=2.0
 # geopandas>=0.14
@@ -12,3 +14,4 @@ gunicorn>=21.0
 # weasyprint>=60  # alternativa a ReportLab para PDF
 # System deps (not pip): PostgreSQL 15 + PostGIS, GDAL, GEOS
 # Spatial analysis CRS: EPSG:32613 (UTM Zone 13N)
+# GEE: cuenta de servicio + earthengine-api (modo degradado sin credenciales)

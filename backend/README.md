@@ -1,30 +1,65 @@
 # SADE v1.0 — Backend (Django GIS)
 
-Sistema Inteligente de Apoyo a la Toma de Decisiones Espacial — siting de rellenos sanitarios en **Valles de Jalisco**.
+Sistema Inteligente de Apoyo a la Toma de Decisiones Espacial — localización de rellenos sanitarios en **Valles de Jalisco**.
 
-This Django project lives under `backend/` alongside the existing CodeIgniter PHP app at the repository root. The PHP app is left untouched; SADE v1.0 starts here.
+Proyecto Django bajo `backend/` junto a la app CodeIgniter PHP (sin modificar).
 
 ## Stack
 
-| Component | Version / note |
-|-----------|----------------|
-| Django | 4.2+ (tested with 5.0.x) |
-| Django REST Framework | `/api/` (PASO 4) |
-| PostgreSQL | 15 |
-| PostGIS | required for production GIS |
-| CRS | **EPSG:32613** (UTM Zone 13N) for spatial analysis |
-| numpy | engine + demo rasters |
+| Componente | Nota |
+|------------|------|
+| Django | 4.2+ (probado con 5.0.x) |
+| Django REST Framework | `/api/` (PASO 3–4 + GEE) |
+| PostgreSQL / PostGIS | 15 — GIS de producción |
+| CRS análisis | **EPSG:32613** (UTM 13N) |
+| CRS GEE / visor | **EPSG:4326** |
+| numpy / ReportLab | motores + PDF |
+| earthengine-api | Google Earth Engine (modo degradado sin credenciales) |
 
 ## Apps (`backend/apps/`)
 
-| App | Role |
+| App | Rol |
 |-----|------|
-| `adquisicion` | `CapaGeoespacial` |
-| `reglas` | `Criterio`, `Regla`, `ReglasEngineService` |
-| `multicriterio` | AHP / CLP services + weights |
-| `escenarios` | `Escenario`, execution API |
-| `visualizacion` | stub |
-| `usuarios` | RBAC role hooks (Groups) |
+| `adquisicion` | `CapaGeoespacial` + **GeeService** |
+| `reglas` | `Criterio`, `Regla`, `RulesEngineService` |
+| `multicriterio` | AHP / CLP + pesos |
+| `escenarios` | ejecución, sensibilidad, ZIP |
+| `visualizacion` | PDF expediente |
+| `usuarios` | RBAC (Groups) |
+
+## Google Earth Engine
+
+Sin credenciales el backend **arranca igual** (`GET /api/gee/status/` → `mode: "degraded"`).
+
+```bash
+# 1) Crear cuenta de servicio en GCP y registrar en Earth Engine
+# 2) Copiar backend/.env.example → backend/.env y configurar UNA opción:
+
+# Opción A
+export GOOGLE_APPLICATION_CREDENTIALS=/ruta/sade-gee-sa.json
+
+# Opción B
+export GEE_SERVICE_ACCOUNT=sade-gee@PROYECTO.iam.gserviceaccount.com
+export GEE_PRIVATE_KEY_PATH=/ruta/sade-gee-sa.json
+
+# Opcional
+export GEE_PROJECT=tu-proyecto-gcp
+
+pip install -r requirements.txt   # incluye earthengine-api
+```
+
+API GEE:
+
+| Método | Path |
+|--------|------|
+| GET | `/api/gee/status/` |
+| GET | `/api/gee/capas/` |
+| GET | `/api/gee/capas/{id}/tiles/` |
+| GET/POST | `/api/gee/consulta-celda/` |
+
+Capas: `dem_srtm`, `pendiente_srtm`, `sentinel2_ndvi`, `landsat8_rgb`, `gsw_occurrence`.
+
+Contrato: store `internal/sade-gee-api-contrato.md`.
 
 ## Setup
 
