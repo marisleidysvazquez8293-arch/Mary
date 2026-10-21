@@ -1,0 +1,73 @@
+# SADE v1.0 — un solo `docker compose up`
+#
+# Servicios:
+#   - db:        PostGIS 15
+#   - backend:   Django + DRF (SADE)
+#   - frontend:  stub/nginx si ./frontend existe
+#
+# NOTA MERGE FRONTEND:
+#   El código frontend aún NO está en `main` ni en esta rama
+#   (`cursor/sade-paso1-models-bfad`). El servicio `frontend` apunta a
+#   `./frontend`. Tras fusionar la rama que contenga el frontend, basta
+#   con `docker compose up --build`. Hasta entonces el contenedor frontend
+#   usa la imagen nginx con un placeholder (ver frontend/Dockerfile).
+
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_DB: sade
+      POSTGRES_USER: sade
+      POSTGRES_PASSWORD: sade
+    ports:
+      - "5432:5432"
+    volumes:
+      - sade_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sade -d sade"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: compose-dev-sade-change-me
+      DJANGO_ALLOWED_HOSTS: "*"
+      POSTGRES_DB: sade
+      POSTGRES_USER: sade
+      POSTGRES_PASSWORD: sade
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      SADE_SOFTWARE_VERSION: "1.0.0"
+      # GEE (opcional): montar JSON y descomentar
+      # GOOGLE_APPLICATION_CREDENTIALS: /secrets/gee-sa.json
+      # GEE_PROJECT: tu-proyecto-gcp
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py load_initial_rules &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    # Cuando exista app real: sustituir por node build o vite preview
+    # y proxy /api → backend:8000
+
+volumes:
+  sade_pgdata:
