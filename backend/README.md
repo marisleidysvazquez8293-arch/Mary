@@ -63,7 +63,13 @@ python manage.py load_initial_rules --dry-run
 | Service | Module |
 |---------|--------|
 | `ReglasEngineService` | `apps/reglas/services.py` |
-| `AHPService` / `CLPService` | `apps/multicriterio/services.py` |
+| `AHPService` | `apps/multicriterio/services/ahp_service.py` |
+| `CLPService` | `apps/multicriterio/services/clp_service.py` |
+
+Import estable: `from apps.multicriterio.services import AHPService, CLPService`.
+
+`AHPService` implementa reconstrucción `a_ij = v_ij/v_ji`, AIJ, autovector,
+IC/CR y diagnóstico de panel (CR individual, mediana, % ≥ 0.10).
 
 ## PASO 4 — REST API & audit
 

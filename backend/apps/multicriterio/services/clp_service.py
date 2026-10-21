@@ -1,196 +1,13 @@
 """
-AHPService and CLPService — multicriteria engine (PASO 3).
-
-Pure numpy core (no PostGIS required for unit tests).
+CLPService — Combinación Lineal Ponderada + restricciones (PASO 3 / tesis §4.5.2).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Mapping, Sequence
+from typing import Any, Sequence
 
 import numpy as np
-
-# Saaty Random Index (IA) for n = 1..15
-SAATY_RI: dict[int, float] = {
-    1: 0.0,
-    2: 0.0,
-    3: 0.58,
-    4: 0.90,
-    5: 1.12,
-    6: 1.24,
-    7: 1.32,
-    8: 1.41,
-    9: 1.45,
-    10: 1.49,
-    11: 1.51,
-    12: 1.48,
-    13: 1.56,
-    14: 1.57,
-    15: 1.59,
-}
-
-DEFAULT_CR_THRESHOLD = 0.10
-
-
-# =====================================================================
-# AHP
-# =====================================================================
-
-
-@dataclass(frozen=True)
-class AHPResult:
-    weights: np.ndarray  # principal eigenvector, normalized ∑=1
-    lambda_max: float
-    consistency_index: float  # IC = (λmax - n) / (n - 1)
-    random_index: float  # IA
-    consistency_ratio: float  # CR = IC / IA
-    is_consistent: bool
-    n: int
-
-
-class AHPService:
-    """
-    Analytic Hierarchy Process helpers.
-
-    - Principal eigenvector (power iteration / numpy eig)
-    - Consistency Ratio CR = IC / IA
-    - AIJ group aggregation via geometric mean of reciprocal matrices
-    """
-
-    def __init__(self, cr_threshold: float = DEFAULT_CR_THRESHOLD):
-        self.cr_threshold = cr_threshold
-
-    @staticmethod
-    def random_index(n: int) -> float:
-        if n < 1:
-            raise ValueError("n must be >= 1")
-        if n in SAATY_RI:
-            return SAATY_RI[n]
-        # Extrapolate mildly beyond table
-        return SAATY_RI[15]
-
-    @staticmethod
-    def validate_reciprocal(matrix: np.ndarray, tol: float = 1e-6) -> None:
-        a = np.asarray(matrix, dtype=float)
-        if a.ndim != 2 or a.shape[0] != a.shape[1]:
-            raise ValueError("Pairwise matrix must be square")
-        n = a.shape[0]
-        if np.any(a <= 0):
-            raise ValueError("Pairwise entries must be positive")
-        for i in range(n):
-            if abs(a[i, i] - 1.0) > tol:
-                raise ValueError("Diagonal must be 1")
-            for j in range(i + 1, n):
-                if abs(a[i, j] * a[j, i] - 1.0) > tol * max(1.0, abs(a[i, j])):
-                    raise ValueError(
-                        f"Matrix not reciprocal at ({i},{j}): "
-                        f"{a[i, j]} * {a[j, i]} != 1"
-                    )
-
-    def principal_eigenvector(self, matrix: np.ndarray) -> tuple[np.ndarray, float]:
-        """
-        Return (normalized principal eigenvector, λ_max).
-
-        Uses numpy.linalg.eig and selects the eigenvalue with largest real part.
-        """
-        a = np.asarray(matrix, dtype=float)
-        self.validate_reciprocal(a)
-        eigenvalues, eigenvectors = np.linalg.eig(a)
-        idx = int(np.argmax(np.real(eigenvalues)))
-        lambda_max = float(np.real(eigenvalues[idx]))
-        vec = np.real(eigenvectors[:, idx])
-        if np.all(vec <= 0):
-            vec = -vec
-        if np.any(vec < 0):
-            # Rare numerical artefact; fall back to row geometric-mean approx
-            vec = self._row_geometric_mean_weights(a)
-            lambda_max = float(np.dot(a @ vec, 1.0 / vec) / len(vec)) if np.all(vec > 0) else lambda_max
-        weights = vec / vec.sum()
-        return weights.astype(float), lambda_max
-
-    @staticmethod
-    def _row_geometric_mean_weights(matrix: np.ndarray) -> np.ndarray:
-        gm = np.prod(matrix, axis=1) ** (1.0 / matrix.shape[0])
-        return gm / gm.sum()
-
-    def consistency_index(self, lambda_max: float, n: int) -> float:
-        if n <= 1:
-            return 0.0
-        return (lambda_max - n) / (n - 1)
-
-    def consistency_ratio(self, matrix: np.ndarray) -> AHPResult:
-        weights, lambda_max = self.principal_eigenvector(matrix)
-        n = matrix.shape[0]
-        ic = self.consistency_index(lambda_max, n)
-        ia = self.random_index(n)
-        if ia == 0.0:
-            cr = 0.0
-        else:
-            cr = ic / ia
-        return AHPResult(
-            weights=weights,
-            lambda_max=lambda_max,
-            consistency_index=ic,
-            random_index=ia,
-            consistency_ratio=cr,
-            is_consistent=cr < self.cr_threshold,
-            n=n,
-        )
-
-    def validate_cr(self, matrix: np.ndarray, threshold: float | None = None) -> AHPResult:
-        """Compute AHP result and raise if CR >= threshold."""
-        thr = self.cr_threshold if threshold is None else threshold
-        result = self.consistency_ratio(matrix)
-        # Re-evaluate with override threshold
-        ok = result.consistency_ratio < thr
-        result = AHPResult(
-            weights=result.weights,
-            lambda_max=result.lambda_max,
-            consistency_index=result.consistency_index,
-            random_index=result.random_index,
-            consistency_ratio=result.consistency_ratio,
-            is_consistent=ok,
-            n=result.n,
-        )
-        if not ok:
-            raise ValueError(
-                f"CR={result.consistency_ratio:.4f} >= threshold {thr} "
-                f"(IC={result.consistency_index:.4f}, IA={result.random_index})"
-            )
-        return result
-
-    def aggregate_aij(
-        self,
-        matrices: Sequence[np.ndarray],
-    ) -> np.ndarray:
-        """
-        AIJ aggregation: element-wise geometric mean of reciprocal pairwise
-        matrices from multiple experts, then re-normalize reciprocity.
-        """
-        if not matrices:
-            raise ValueError("matrices must be non-empty")
-        stack = np.array([np.asarray(m, dtype=float) for m in matrices])
-        n = stack.shape[1]
-        for m in stack:
-            if m.shape != (n, n):
-                raise ValueError("All matrices must share the same shape")
-            self.validate_reciprocal(m)
-
-        # Geometric mean of upper triangle; mirror reciprocal
-        geo = np.prod(stack, axis=0) ** (1.0 / stack.shape[0])
-        out = np.ones((n, n), dtype=float)
-        for i in range(n):
-            for j in range(i + 1, n):
-                out[i, j] = geo[i, j]
-                out[j, i] = 1.0 / geo[i, j]
-        self.validate_reciprocal(out)
-        return out
-
-    def weights_from_pairwise(self, matrix: np.ndarray) -> AHPResult:
-        """Alias: eigenvector + CR in one call (no raise)."""
-        return self.consistency_ratio(matrix)
-
 
 # =====================================================================
 # CLP — Combinación Lineal Ponderada + restricciones
@@ -469,16 +286,11 @@ class CLPService:
         )
 
 
-# Re-export convenience
 __all__ = [
-    "AHPService",
-    "AHPResult",
     "CLPService",
     "CLPResult",
     "SuitabilityClass",
     "CLASS_LABELS",
     "CandidatePolygon",
-    "DEFAULT_CR_THRESHOLD",
     "DEFAULT_BREAKS",
-    "SAATY_RI",
 ]
