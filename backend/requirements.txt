@@ -1,0 +1,6 @@
+# SADE v1.0 — Django GIS stack (PASO 1)
+Django>=4.2,<5.1
+djangorestframework>=3.14
+psycopg[binary]>=3.1
+# System deps (not pip): PostgreSQL 15 + PostGIS, GDAL, GEOS
+# Spatial analysis CRS: EPSG:32613 (UTM Zone 13N)
