@@ -16,6 +16,7 @@ class CriterioAdmin(admin.ModelAdmin):
     list_filter = ("bloque", "tipo_restriccion", "activo", "fuente")
     search_fields = ("id_criterio", "nombre", "fuente")
     ordering = ("id_criterio",)
+    list_display_links = ("id_criterio", "nombre")
 
 
 @admin.register(Regla)

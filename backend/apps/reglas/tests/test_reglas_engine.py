@@ -20,15 +20,15 @@ class ReglasEngineTests(unittest.TestCase):
         a = np.array([[1, 1], [0, 1]], dtype=float)
         b = np.array([[1, 0], [1, 1]], dtype=float)
         layers = [
-            RestrictionLayer("GEO_01", "normativa", a, {"buffer_m": 500}),
-            RestrictionLayer("GEO_02", "normativa", b, {"buffer_m": 500}),
+            RestrictionLayer("ECO_01", "normativa", a, {"buffer_m": 500}),
+            RestrictionLayer("ECO_02", "normativa", b, {"buffer_m": 500}),
         ]
         result = self.engine.build_exclusion_mask(layers)
         expected = np.array([[1, 0], [0, 1]], dtype=float)
         np.testing.assert_array_equal(result.product, expected)
         np.testing.assert_array_equal(result.exclusion_mask, expected.astype(bool))
-        self.assertEqual(result.buffers_applied_m["GEO_01"], 500)
-        self.assertEqual(result.buffers_applied_m["GEO_02"], 500)
+        self.assertEqual(result.buffers_applied_m["ECO_01"], 500)
+        self.assertEqual(result.buffers_applied_m["ECO_02"], 500)
 
     def test_water_wells_500m_buffer(self):
         # distance raster: cell centers at 0, 400, 600 m from feature
@@ -42,13 +42,13 @@ class ReglasEngineTests(unittest.TestCase):
         layers = self.engine.build_layers_from_distance_rasters(
             [
                 {
-                    "id_criterio": "SOC_02",
+                    "id_criterio": "SOC_01",
                     "tipo_restriccion": "advertencia",
                     "distance_m": dist,
                     "parametros": {"warning_radius_m": 13_000},
                 },
                 {
-                    "id_criterio": "GEO_01",
+                    "id_criterio": "ECO_01",
                     "tipo_restriccion": "normativa",
                     "distance_m": np.array([[600.0, 600.0]]),
                     "parametros": {"buffer_m": 500},
@@ -59,7 +59,7 @@ class ReglasEngineTests(unittest.TestCase):
         # Soft warning does not zero the product
         np.testing.assert_array_equal(result.product, np.array([[1.0, 1.0]]))
         self.assertEqual(len(result.warnings), 1)
-        self.assertEqual(result.warnings[0].id_criterio, "SOC_02")
+        self.assertEqual(result.warnings[0].id_criterio, "SOC_01")
         self.assertEqual(result.warnings[0].radius_m, DEFAULT_AERODROME_WARNING_M)
         np.testing.assert_array_equal(
             result.warnings[0].cell_mask, np.array([[True, False]])
@@ -70,7 +70,7 @@ class ReglasEngineTests(unittest.TestCase):
         layers = self.engine.build_layers_from_distance_rasters(
             [
                 {
-                    "id_criterio": "SOC_02",
+                    "id_criterio": "SOC_01",
                     "tipo_restriccion": "advertencia",
                     "distance_m": dist,
                     "parametros": {

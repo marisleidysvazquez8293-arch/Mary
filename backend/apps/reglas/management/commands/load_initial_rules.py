@@ -1,19 +1,13 @@
 """
-Load SADE initial criteria, default rules, and AHP weights (PASO 2).
+Carga los 21 criterios de la Tabla 4.1 y pesos del Apéndice B (tesis SADE).
 
-Usage:
+Uso:
     python manage.py load_initial_rules
     python manage.py load_initial_rules --dry-run
 
-Idempotent: safe to re-run. Uses update_or_create keyed by id_criterio /
-(criterio, version) / conjunto nombre + criterio.
+Idempotente: update_or_create por id_criterio / (criterio, version) / nombre AHP.
 
-PLACEHOLDER PENDING THESIS PDF:
-  Tabla 4.1 and Apéndice B are not in the repository. Seed data in
-  apps.reglas.data.initial_rules is a NOM-083-aligned placeholder set of
-  21 ids (GEO_01–07, ECO_01–07, SOC_01–07). Replace with thesis values when
-  available. Block weights 36.54 / 31.01 / 32.45% come from the PASO 2 brief
-  (Apéndice B). CR fields are 0.0 until AHPService (PASO 3+) computes them.
+Distribución: GEO×7, ECO×4, SOC×10. Pesos y CR según Apéndice B (AIJ).
 """
 from __future__ import annotations
 
@@ -22,19 +16,20 @@ from django.db import transaction
 
 from apps.multicriterio.models import ConjuntoPesosAHP, PesoCriterio
 from apps.reglas.data.initial_rules import (
+    AHP_PROCEDENCIA,
     BLOQUE_WEIGHTS,
+    CR_BLOQUES,
     CRITERIOS_SEED,
     DEFAULT_AHP_NOMBRE,
     DEFAULT_REGLA_VERSION,
-    PESOS_LOCALES,
 )
 from apps.reglas.models import Criterio, Regla
 
 
 class Command(BaseCommand):
     help = (
-        "Carga 21 criterios (Tabla 4.1 placeholder), reglas v1.0.0 y "
-        "ConjuntoPesosAHP default (Apéndice B). Idempotente."
+        "Carga 21 criterios (Tabla 4.1: GEO×7, ECO×4, SOC×10), reglas v1.0.0 "
+        "y ConjuntoPesosAHP del Apéndice B. Idempotente."
     )
 
     def add_arguments(self, parser):
@@ -63,10 +58,8 @@ class Command(BaseCommand):
             }
             if dry_run:
                 exists = Criterio.objects.filter(id_criterio=seed["id_criterio"]).exists()
-                if exists:
-                    updated_c += 1
-                else:
-                    created_c += 1
+                created_c += 0 if exists else 1
+                updated_c += 1 if exists else 0
                 criterio = None
             else:
                 criterio, was_created = Criterio.objects.update_or_create(
@@ -81,21 +74,18 @@ class Command(BaseCommand):
             regla_seed = seed["regla"]
             regla_defaults = {
                 "parametros_json": regla_seed["parametros_json"],
-                "es_regla_respaldo": False,
+                "es_regla_respaldo": bool(
+                    regla_seed["parametros_json"].get("es_regla_respaldo_posible")
+                ),
                 "descripcion": regla_seed["descripcion"],
             }
             if dry_run:
-                if criterio is None:
-                    # Approximate: treat as create if criterio would be new
-                    pass
                 exists_r = Regla.objects.filter(
                     criterio__id_criterio=seed["id_criterio"],
                     version=DEFAULT_REGLA_VERSION,
                 ).exists()
-                if exists_r:
-                    updated_r += 1
-                else:
-                    created_r += 1
+                created_r += 0 if exists_r else 1
+                updated_r += 1 if exists_r else 0
             else:
                 assert criterio is not None
                 _, was_created_r = Regla.objects.update_or_create(
@@ -108,16 +98,14 @@ class Command(BaseCommand):
                 else:
                     updated_r += 1
 
-        # --- AHP default conjunto ---
-        # CR left at 0.0: real consistency ratios come from AHPService later.
         ahp_defaults = {
             "descripcion": (
-                "Pesos por bloque Apéndice B (placeholder pending thesis PDF). "
-                "CR=0 hasta AHPService."
+                "Pesos Apéndice B (tesis SADE). Panel 15 expertos; "
+                f"agregación AIJ; procedencia={AHP_PROCEDENCIA}."
             ),
-            "cr_geohidro": 0.0,
-            "cr_ecol": 0.0,
-            "cr_socio": 0.0,
+            "cr_geohidro": CR_BLOQUES["cr_geohidro"],
+            "cr_ecol": CR_BLOQUES["cr_ecol"],
+            "cr_socio": CR_BLOQUES["cr_socio"],
             "es_agregado_grupo": True,
         }
 
@@ -135,19 +123,16 @@ class Command(BaseCommand):
         pesos_created, pesos_updated = 0, 0
         for seed in CRITERIOS_SEED:
             cid = seed["id_criterio"]
-            bloque = seed["bloque"]
-            peso_local = PESOS_LOCALES[cid]
-            peso_global = peso_local * BLOQUE_WEIGHTS[bloque]
+            peso_local = float(seed["peso_local"])
+            peso_global = float(seed["peso_global"])
 
             if dry_run:
                 exists_p = PesoCriterio.objects.filter(
                     conjunto__nombre=DEFAULT_AHP_NOMBRE,
                     criterio__id_criterio=cid,
                 ).exists()
-                if exists_p:
-                    pesos_updated += 1
-                else:
-                    pesos_created += 1
+                pesos_created += 0 if exists_p else 1
+                pesos_updated += 1 if exists_p else 0
                 continue
 
             assert conjunto is not None
@@ -166,24 +151,29 @@ class Command(BaseCommand):
                 pesos_updated += 1
 
         if dry_run:
-            # Roll back any accidental writes (none expected) and abort transaction
             transaction.set_rollback(True)
 
         ids = ", ".join(s["id_criterio"] for s in CRITERIOS_SEED)
-        self.stdout.write(self.style.SUCCESS("load_initial_rules completed"))
-        self.stdout.write(f"  Criterios: {created_c} created, {updated_c} updated")
-        self.stdout.write(f"  Reglas v{DEFAULT_REGLA_VERSION}: {created_r} created, {updated_r} updated")
-        self.stdout.write(f"  ConjuntoPesosAHP '{DEFAULT_AHP_NOMBRE}': {ahp_action}")
-        self.stdout.write(f"  PesoCriterio: {pesos_created} created, {pesos_updated} updated")
+        n_geo = sum(1 for s in CRITERIOS_SEED if s["bloque"] == "geohidrologico")
+        n_eco = sum(1 for s in CRITERIOS_SEED if s["bloque"] == "ecologico")
+        n_soc = sum(1 for s in CRITERIOS_SEED if s["bloque"] == "socioeconomico")
+        self.stdout.write(self.style.SUCCESS("load_initial_rules completado"))
+        self.stdout.write(f"  Criterios: {created_c} creados, {updated_c} actualizados")
         self.stdout.write(
-            f"  Block weights: GEO={BLOQUE_WEIGHTS['geohidrologico']:.2%} "
+            f"  Distribución: GEO×{n_geo}, ECO×{n_eco}, SOC×{n_soc} (total {len(CRITERIOS_SEED)})"
+        )
+        self.stdout.write(
+            f"  Reglas v{DEFAULT_REGLA_VERSION}: {created_r} creadas, {updated_r} actualizadas"
+        )
+        self.stdout.write(f"  ConjuntoPesosAHP '{DEFAULT_AHP_NOMBRE}': {ahp_action}")
+        self.stdout.write(f"  PesoCriterio: {pesos_created} creados, {pesos_updated} actualizados")
+        self.stdout.write(
+            f"  Pesos bloque: GEO={BLOQUE_WEIGHTS['geohidrologico']:.2%} "
             f"ECO={BLOQUE_WEIGHTS['ecologico']:.2%} "
             f"SOC={BLOQUE_WEIGHTS['socioeconomico']:.2%}"
         )
-        self.stdout.write(f"  IDs ({len(CRITERIOS_SEED)}): {ids}")
         self.stdout.write(
-            self.style.WARNING(
-                "  NOTE: placeholder pending thesis PDF (Tabla 4.1 / Apéndice B). "
-                "CR fields are 0.0 until AHPService."
-            )
+            f"  CR: geo={CR_BLOQUES['cr_geohidro']}, "
+            f"eco={CR_BLOQUES['cr_ecol']}, socio={CR_BLOQUES['cr_socio']}"
         )
+        self.stdout.write(f"  IDs: {ids}")

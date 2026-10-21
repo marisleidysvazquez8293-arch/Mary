@@ -12,10 +12,11 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
-# Known criterion ids from seed (NOM-083 placeholders)
-WATER_IDS = frozenset({"GEO_01"})
-WELLS_IDS = frozenset({"GEO_02"})
-AERODROME_IDS = frozenset({"SOC_02"})
+# IDs Tabla 4.1 (tesis): agua/pozos están en bloque ecológico
+WATER_IDS = frozenset({"ECO_01"})
+WELLS_IDS = frozenset({"ECO_02"})
+AERODROME_IDS = frozenset({"SOC_01"})
+URBAN_IDS = frozenset({"SOC_02"})
 DEFAULT_BUFFER_M = 500.0
 DEFAULT_AERODROME_WARNING_M = 13_000.0
 
@@ -136,7 +137,7 @@ class ReglasEngineService:
             applied.append(layer.id_criterio)
 
             buf = self.buffer_meters(layer.parametros, default=0.0)
-            if buf > 0 and layer.id_criterio in (WATER_IDS | WELLS_IDS | {"SOC_01"}):
+            if buf > 0 and layer.id_criterio in (WATER_IDS | WELLS_IDS | URBAN_IDS):
                 buffers[layer.id_criterio] = buf
             elif "buffer_m" in (layer.parametros or {}):
                 buffers[layer.id_criterio] = float(layer.parametros["buffer_m"])

@@ -215,14 +215,14 @@ CLASS_LABELS: dict[int, str] = {
     SuitabilityClass.OPTIMO: "Óptimo",
 }
 
-# Default breakpoints on S ∈ (0, 1] after applying ∏ c_j.
-# Excluido is forced when S ≈ 0 (exclusion product). Four cuts → five bands
-# plus Excluido = 6 classes.
+# Cortes tesis §4.5.2 (S ∈ [0, 5] tras ∑w·x con x∈[0,5]):
+# 0 = Excluido; (0,1.5] No apto; (1.5,2.5] No recomendable;
+# (2.5,3.5] Apto con restricciones; (3.5,4.5] Favorable; (4.5,5] Óptimo.
 DEFAULT_BREAKS: tuple[float, float, float, float] = (
-    0.20,  # (0, b0] → No apto
-    0.40,  # (b0, b1] → No recomendable
-    0.60,  # (b1, b2] → Apto con restricciones
-    0.80,  # (b2, b3] → Favorable; (b3, 1] → Óptimo
+    1.5,
+    2.5,
+    3.5,
+    4.5,
 )
 
 

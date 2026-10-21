@@ -1,9 +1,8 @@
 """
-Catálogo de capas geoespaciales (PASO 1).
+Catálogo de capas geoespaciales.
 
-Campos de metadatos listos para PASO 1. GeometryField (django.contrib.gis)
-puede añadirse en fases posteriores para footprints / extents; el SRID por
-defecto de análisis es EPSG:32613.
+GeometryField (django.contrib.gis) puede añadirse después para footprints;
+SRID de análisis por defecto: EPSG:32613.
 """
 from django.db import models
 
@@ -13,30 +12,36 @@ from apps.reglas.models import Criterio
 class CapaGeoespacial(models.Model):
     class TipoFormato(models.TextChoices):
         VECTORIAL = "vectorial", "Vectorial"
-        RASTER = "raster", "Raster"
+        RASTER = "raster", "Ráster"
         GEE = "gee", "Google Earth Engine"
 
-    nombre = models.CharField(max_length=255)
+    nombre = models.CharField("Nombre", max_length=255)
     criterio = models.ForeignKey(
         Criterio,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="capas",
+        verbose_name="Criterio",
         help_text="Criterio asociado (opcional).",
     )
-    tipo_formato = models.CharField(max_length=16, choices=TipoFormato.choices)
+    tipo_formato = models.CharField(
+        "Tipo de formato", max_length=16, choices=TipoFormato.choices
+    )
     ruta_archivo_o_id_gee = models.CharField(
+        "Ruta de archivo o ID GEE",
         max_length=1024,
         help_text="Ruta local/objeto o asset ID de GEE.",
     )
     srid = models.IntegerField(
+        "SRID",
         default=32613,
         help_text="SRID de la capa (análisis SADE: 32613).",
     )
-    version = models.CharField(max_length=64, blank=True, default="")
-    es_confidencial = models.BooleanField(default=False)
+    version = models.CharField("Versión", max_length=64, blank=True, default="")
+    es_confidencial = models.BooleanField("Es confidencial", default=False)
     hash_contenido = models.CharField(
+        "Hash de contenido",
         max_length=128,
         blank=True,
         default="",

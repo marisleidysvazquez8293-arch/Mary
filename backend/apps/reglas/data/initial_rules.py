@@ -1,34 +1,42 @@
 """
-Placeholder seed for Tabla 4.1 (21 criterios) + Apéndice B (pesos AHP).
+Semilla Tabla 4.1 + Apéndice B (tesis SADE Valles de Jalisco).
 
-IMPORTANT — placeholder pending thesis PDF:
-  The repository does not contain Tabla 4.1 or Apéndice B text. This module
-  defines a well-documented set of 21 ids (GEO_*, ECO_*, SOC_*) aligned with
-  typical NOM-083-SEMARNAT-2003 landfill siting criteria for Valles de Jalisco.
-  Replace nombres / parametros / pesos locales with thesis values when the PDF
-  is available; keep id_criterio stable where possible.
+Fuente: docs/tesis-sade-valles-jalisco.docx (extractos en
+internal/tesis-sade-extracto.txt y tesis-criterios-y-pesos-clave.txt).
 
-Block weights (Apéndice B, provided in PASO 2 brief):
-  Geohidrológico 36.54%, Ecológico 31.01%, Socioeconómico 32.45%.
-
-Per-criterion peso_local: uniform 1/7 within each block (placeholder).
-peso_global = peso_local * bloque_weight.
-
-CR (consistency ratio): left at 0.0 — real CR is produced by AHPService (PASO 3+).
+21 criterios: GEO×7, ECO×4, SOC×10 (NO 7/7/7).
+Pesos de bloque: GEO 36.54%, ECO 31.01%, SOC 32.45%.
+CR agregados (AIJ): criterios 0.002, GEO 0.0035, ECO 0.0020, SOC 0.0047.
 """
-
 from __future__ import annotations
 
 from typing import Any, TypedDict
 
 DEFAULT_REGLA_VERSION = "1.0.0"
-DEFAULT_AHP_NOMBRE = "AHP Apéndice B — default Valles de Jalisco"
+DEFAULT_AHP_NOMBRE = "AHP Apéndice B — panel 15 expertos (AIJ)"
 
-# Apéndice B block weights (fractions)
+# Apéndice B — Tabla B.3
 BLOQUE_WEIGHTS: dict[str, float] = {
     "geohidrologico": 0.3654,
     "ecologico": 0.3101,
     "socioeconomico": 0.3245,
+}
+
+# CR de matrices agregadas (Apéndice B / Tabla 4.2 narrativa)
+CR_BLOQUES: dict[str, float] = {
+    "cr_geohidro": 0.0035,
+    "cr_ecol": 0.0020,
+    "cr_socio": 0.0047,
+}
+CR_CRITERIOS_PRINCIPALES = 0.002
+
+# Procedencia AHP (RF Apéndice A)
+AHP_PROCEDENCIA: dict[str, Any] = {
+    "panel": 15,
+    "fechas": "2026-04-17 a 2026-05-07",
+    "metodo_agregacion": "AIJ media geométrica (reconstrucción direccional)",
+    "cr_criterios_principales": CR_CRITERIOS_PRINCIPALES,
+    **CR_BLOQUES,
 }
 
 
@@ -39,383 +47,478 @@ class CriterioSeed(TypedDict):
     fuente: str
     tipo_restriccion: str
     activo: bool
+    peso_local: float
+    peso_global: float
     regla: dict[str, Any]
 
 
-# 21 criteria — 7 GEO + 7 ECO + 7 SOC
 CRITERIOS_SEED: list[CriterioSeed] = [
-    # --- Geohidrológico ---
+    # --- Geohidrológico (7) — Tabla 4.1 + B.4 ---
     {
         "id_criterio": "GEO_01",
-        "nombre": "Distancia a cuerpos de agua superficiales",
+        "nombre": "Zonas de recarga de acuíferos",
         "bloque": "geohidrologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.6",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4 / SEDESOL NTE-CRM-001/90",
         "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1412,
+        "peso_global": 0.0516,
         "regla": {
-            "descripcion": "Buffer mínimo 500 m a lagos, lagunas y cauces de caudal continuo.",
+            "descripcion": (
+                "Excluye sitios en áreas de alta vulnerabilidad a la infiltración "
+                "y contaminación del acuífero. SEDESOL sugiere >1 km a zonas de recarga."
+            ),
             "parametros_json": {
-                "buffer_m": 500,
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.6",
+                "buffer_m": 1000,
+                "norma": "NOM-083 §6.1.4",
+                "antecedente": "SEDESOL NTE-CRM-001/90 (>1 km)",
             },
         },
     },
     {
         "id_criterio": "GEO_02",
-        "nombre": "Distancia a pozos de extracción de agua",
+        "nombre": "Zona de inundación",
         "bloque": "geohidrologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.7",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.5",
         "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1495,
+        "peso_global": 0.0546,
         "regla": {
             "descripcion": (
-                "500 m mínimo cuando no se determina el cono de abatimiento "
-                "(100 m + proyección del cono si se conoce)."
+                "Excluye áreas susceptibles de anegamiento o escurrimientos "
+                "extraordinarios (periodo de retorno 100 años)."
             ),
             "parametros_json": {
-                "buffer_m": 500,
-                "buffer_cono_abatimiento_extra_m": 100,
+                "periodo_retorno_anios": 100,
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.7",
+                "norma": "NOM-083 §6.1.5",
             },
         },
     },
     {
         "id_criterio": "GEO_03",
-        "nombre": "Zonas de inundación (Tr 100 años)",
+        "nombre": "Fracturas o fallas geológicas",
         "bloque": "geohidrologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.5",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4 / SEDESOL NTE-CRM-001/90",
         "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1444,
+        "peso_global": 0.0528,
         "regla": {
-            "descripcion": "Exclusión de zonas inundables con periodo de retorno de 100 años.",
+            "descripcion": (
+                "Excluye zonas con inestabilidad estructural o rutas preferenciales "
+                "de infiltración de lixiviados. SEDESOL: >500 m a fallas/fracturas."
+            ),
             "parametros_json": {
-                "periodo_retorno_anios": 100,
+                "buffer_m": 500,
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.5",
+                "norma": "NOM-083 §6.1.4",
+                "antecedente": "SEDESOL (>500 m)",
             },
         },
     },
     {
         "id_criterio": "GEO_04",
-        "nombre": "Zonas de recarga de acuíferos",
+        "nombre": "Zonas de riesgo de deslizamiento",
         "bloque": "geohidrologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4",
-        "tipo_restriccion": "normativa",
+        "fuente": "Antecedente técnico / panel de expertos (Tabla 4.1)",
+        "tipo_restriccion": "modelo",
         "activo": True,
+        "peso_local": 0.1533,
+        "peso_global": 0.0560,
         "regla": {
-            "descripcion": "Exclusión de zonas de recarga de acuíferos.",
+            "descripcion": (
+                "Excluye terrenos con susceptibilidad a movimientos de ladera "
+                "o pérdida de estabilidad física."
+            ),
             "parametros_json": {
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.4",
+                "origen": "modelo_tecnico",
             },
         },
     },
     {
         "id_criterio": "GEO_05",
-        "nombre": "Profundidad del nivel freático",
+        "nombre": "Cavernas",
         "bloque": "geohidrologico",
-        "fuente": "NOM-083 / estudio hidrogeológico",
-        "tipo_restriccion": "modelo",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4",
+        "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1280,
+        "peso_global": 0.0468,
         "regla": {
             "descripcion": (
-                "Mayor profundidad del NF favorece idoneidad. Umbral placeholder "
-                "pending thesis PDF."
+                "Excluye áreas con vacíos subterráneos o alta permeabilidad "
+                "que incrementan el riesgo geotécnico e hidrogeológico."
             ),
             "parametros_json": {
-                "profundidad_minima_m": 10,
-                "suitability": "linear_increasing",
-                "notes": "placeholder threshold",
+                "suitability": "binary_exclusion",
+                "norma": "NOM-083 §6.1.4",
             },
         },
     },
     {
         "id_criterio": "GEO_06",
-        "nombre": "Permeabilidad / litología del suelo",
+        "nombre": "Planicies aluviales",
         "bloque": "geohidrologico",
-        "fuente": "Estudio geológico / hidrogeológico",
-        "tipo_restriccion": "modelo",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4",
+        "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1374,
+        "peso_global": 0.0502,
         "regla": {
-            "descripcion": "Baja permeabilidad favorece contención de lixiviados.",
+            "descripcion": (
+                "Descarta zonas con dinámica sedimentaria o hidrológica "
+                "desfavorable para la disposición final."
+            ),
             "parametros_json": {
-                "prefer_low_permeability": True,
-                "suitability": "ordered_classes",
-                "notes": "placeholder class ranking",
+                "suitability": "binary_exclusion",
+                "norma": "NOM-083 §6.1.4",
             },
         },
     },
     {
         "id_criterio": "GEO_07",
-        "nombre": "Fallas, fracturas y cavernas",
+        "nombre": "Tipo de suelo",
         "bloque": "geohidrologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4",
-        "tipo_restriccion": "normativa",
+        "fuente": "SEDESOL NTE-CRM-001/90 / estudio geotécnico",
+        "tipo_restriccion": "modelo",
         "activo": True,
+        "peso_local": 0.1462,
+        "peso_global": 0.0534,
         "regla": {
-            "descripcion": "Exclusión sobre cavernas, fracturas o fallas geológicas.",
+            "descripcion": (
+                "Valora capacidad portante e infiltración (factor continuo 0–5). "
+                "SEDESOL: profundidad del manto freático >10 m como referencia."
+            ),
             "parametros_json": {
-                "buffer_m": 0,
-                "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.4",
+                "suitability": "ordered_classes",
+                "profundidad_freatico_min_m": 10,
+                "escala_factor": [0, 5],
+                "antecedente": "SEDESOL NTE-CRM-001/90",
             },
         },
     },
-    # --- Ecológico ---
+    # --- Ecológico (4) — Tabla 4.1 + B.5 ---
     {
         "id_criterio": "ECO_01",
-        "nombre": "Áreas Naturales Protegidas (ANP)",
+        "nombre": "Cuerpos de agua superficial (buffer 500 m)",
         "bloque": "ecologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.2",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.6",
         "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.2824,
+        "peso_global": 0.0876,
         "regla": {
-            "descripcion": "Exclusión dentro de ANP (salvo plan de manejo que lo contemple).",
+            "descripcion": (
+                "Protege cauces, ríos y cuerpos de agua superficiales de caudal "
+                "continuo con buffer mínimo de 500 m."
+            ),
             "parametros_json": {
+                "buffer_m": 500,
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.2",
+                "norma": "NOM-083 §6.1.6",
+                "regla_respaldo": (
+                    "Si no hay capa de cuerpos de agua, índice sustituto "
+                    "(corrientes, litología, pendiente)."
+                ),
             },
         },
     },
     {
         "id_criterio": "ECO_02",
-        "nombre": "Humedales, marismas, manglares y pantanos",
+        "nombre": "Pozos de extracción de agua (buffer 500 m)",
         "bloque": "ecologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.7",
         "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.2407,
+        "peso_global": 0.0747,
         "regla": {
-            "descripcion": "Exclusión de humedales y ecosistemas acuáticos asociados.",
+            "descripcion": (
+                "Evita afectaciones a fuentes de abastecimiento. "
+                "100 m + cono de abatimiento; respaldo 500 m si no se determina."
+            ),
             "parametros_json": {
+                "buffer_m": 500,
+                "buffer_cono_abatimiento_extra_m": 100,
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.4",
+                "norma": "NOM-083 §6.1.7",
+                "es_regla_respaldo_posible": True,
             },
         },
     },
     {
         "id_criterio": "ECO_03",
-        "nombre": "Cobertura vegetal / uso de suelo forestal",
+        "nombre": "Ecosistemas acuáticos",
         "bloque": "ecologico",
-        "fuente": "INEGI / ERS",
-        "tipo_restriccion": "modelo",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4",
+        "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.2473,
+        "peso_global": 0.0767,
         "regla": {
-            "descripcion": "Preferir usos de menor valor ecológico; bosques con baja idoneidad.",
+            "descripcion": (
+                "Restringe localización en marismas, manglares, esteros, "
+                "pantanos, humedales y entornos de alto valor ecológico."
+            ),
             "parametros_json": {
-                "suitability": "ordered_classes",
-                "notes": "placeholder land-cover ranking",
+                "suitability": "binary_exclusion",
+                "norma": "NOM-083 §6.1.4",
             },
         },
     },
     {
         "id_criterio": "ECO_04",
-        "nombre": "Hábitat y corredores de biodiversidad",
+        "nombre": "Áreas Naturales Protegidas",
         "bloque": "ecologico",
-        "fuente": "CONABIO / ERS",
-        "tipo_restriccion": "advertencia",
-        "activo": True,
-        "regla": {
-            "descripcion": "Advertencia sobre hábitats prioritarios; no exclusión dura por defecto.",
-            "parametros_json": {
-                "suitability": "linear_decreasing",
-                "notes": "placeholder pending thesis PDF",
-            },
-        },
-    },
-    {
-        "id_criterio": "ECO_05",
-        "nombre": "Pendiente del terreno",
-        "bloque": "ecologico",
-        "fuente": "SEDESOL / buenas prácticas siting",
-        "tipo_restriccion": "modelo",
-        "activo": True,
-        "regla": {
-            "descripcion": "Pendientes moderadas preferidas; muy altas reducen idoneidad.",
-            "parametros_json": {
-                "slope_max_pct": 30,
-                "suitability": "piecewise_linear",
-                "notes": "placeholder threshold",
-            },
-        },
-    },
-    {
-        "id_criterio": "ECO_06",
-        "nombre": "Erosión e inestabilidad de laderas",
-        "bloque": "ecologico",
-        "fuente": "Estudio geotécnico / ERS",
-        "tipo_restriccion": "modelo",
-        "activo": True,
-        "regla": {
-            "descripcion": "Zonas de alta erosión o inestabilidad con baja idoneidad.",
-            "parametros_json": {
-                "suitability": "ordered_classes",
-                "notes": "placeholder",
-            },
-        },
-    },
-    {
-        "id_criterio": "ECO_07",
-        "nombre": "Zonas arqueológicas",
-        "bloque": "ecologico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4 / INAH",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.2",
         "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.2296,
+        "peso_global": 0.0712,
         "regla": {
-            "descripcion": "Exclusión de zonas arqueológicas.",
+            "descripcion": (
+                "Impide ubicación en ANP (salvo plan de manejo que lo contemple)."
+            ),
             "parametros_json": {
                 "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.4",
+                "norma": "NOM-083 §6.1.2",
             },
         },
     },
-    # --- Socioeconómico ---
+    # --- Socioeconómico (10) — Tabla 4.1 + B.6 ---
     {
         "id_criterio": "SOC_01",
-        "nombre": "Distancia a traza urbana (≥2 500 hab.)",
+        "nombre": "Distancia a aeródromo (13 km)",
         "bloque": "socioeconomico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.3",
-        "tipo_restriccion": "normativa",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.1",
+        "tipo_restriccion": "advertencia",
         "activo": True,
+        "peso_local": 0.1049,
+        "peso_global": 0.0340,
         "regla": {
-            "descripcion": "Buffer mínimo 500 m desde traza urbana existente o planificada.",
+            "descripcion": (
+                "Celdas a menos de 13 km del centro de pista: advertencia "
+                "«requiere estudio de riesgo aviario» (no exclusión dura)."
+            ),
             "parametros_json": {
-                "buffer_m": 500,
-                "poblacion_umbral": 2500,
-                "suitability": "binary_exclusion",
-                "notes": "NOM-083 §6.1.3",
+                "warning_radius_m": 13000,
+                "suitability": "warning_within_radius",
+                "norma": "NOM-083 §6.1.1",
+                "hard_exclude": False,
             },
         },
     },
     {
         "id_criterio": "SOC_02",
-        "nombre": "Proximidad a aeródromos / aeropuertos",
+        "nombre": "Proximidad a localidades >2 500 hab. (buffer 500 m)",
         "bloque": "socioeconomico",
-        "fuente": "NOM-083-SEMARNAT-2003 §6.1.1",
-        "tipo_restriccion": "advertencia",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.3",
+        "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1002,
+        "peso_global": 0.0325,
         "regla": {
             "descripcion": (
-                "Si distancia < 13 km al centro de pista, requiere estudio de riesgo aviario."
+                "Evita conflictos con asentamientos: buffer mínimo 500 m "
+                "desde traza urbana de localidades >2 500 habitantes."
             ),
             "parametros_json": {
-                "warning_radius_m": 13000,
-                "suitability": "warning_within_radius",
-                "notes": "NOM-083 §6.1.1 — aerodrome warning <13 km",
+                "buffer_m": 500,
+                "poblacion_umbral": 2500,
+                "suitability": "binary_exclusion",
+                "norma": "NOM-083 §6.1.3",
             },
         },
     },
     {
         "id_criterio": "SOC_03",
-        "nombre": "Accesibilidad vial / distancia a carreteras",
+        "nombre": "Vías de acceso",
         "bloque": "socioeconomico",
-        "fuente": "SEDESOL / ERS",
+        "fuente": "SEDESOL NTE-CRM-001/90 / panel de expertos",
         "tipo_restriccion": "modelo",
         "activo": True,
+        "peso_local": 0.1037,
+        "peso_global": 0.0336,
         "regla": {
-            "descripcion": "Acceso razonable favorece operación; demasiado cercano puede ser conflicto.",
+            "descripcion": (
+                "Favorece sitios con conectividad suficiente. "
+                "SEDESOL: distancia a vías de comunicación >200 m."
+            ),
             "parametros_json": {
-                "preferred_distance_m": [200, 2000],
+                "buffer_m": 200,
                 "suitability": "piecewise_linear",
-                "notes": "placeholder pending thesis PDF",
+                "escala_factor": [0, 5],
+                "antecedente": "SEDESOL (>200 m)",
             },
         },
     },
     {
         "id_criterio": "SOC_04",
-        "nombre": "Densidad de población en área de influencia",
+        "nombre": "Uso de suelo (agavero, cañero, otro)",
         "bloque": "socioeconomico",
-        "fuente": "INEGI / SEDESOL",
+        "fuente": "Plan municipal / panel (Tabla 4.1)",
         "tipo_restriccion": "modelo",
         "activo": True,
+        "peso_local": 0.0989,
+        "peso_global": 0.0321,
         "regla": {
-            "descripcion": "Menor densidad poblacional aumenta idoneidad relativa.",
+            "descripcion": (
+                "Evalúa compatibilidad territorial; evita uso indebido de "
+                "zonas agroproductivas estratégicas (agavero, cañero)."
+            ),
             "parametros_json": {
-                "suitability": "linear_decreasing",
-                "notes": "placeholder",
+                "suitability": "ordered_classes",
+                "escala_factor": [0, 5],
+                "clases_ejemplo": ["agavero", "canero", "otro"],
             },
         },
     },
     {
         "id_criterio": "SOC_05",
-        "nombre": "Uso de suelo y tenencia",
+        "nombre": "Facilidad de compra del terreno",
         "bloque": "socioeconomico",
-        "fuente": "Catastro / plan municipal",
+        "fuente": "Panel de expertos (parámetro de usuario)",
         "tipo_restriccion": "modelo",
         "activo": True,
+        "peso_local": 0.1048,
+        "peso_global": 0.0340,
         "regla": {
-            "descripcion": "Preferir suelos compatibles con disposición final.",
+            "descripcion": (
+                "Viabilidad de adquisición legal y costo. "
+                "Sin capa pública: capturado por el usuario (tesis §1.6)."
+            ),
             "parametros_json": {
-                "suitability": "ordered_classes",
-                "notes": "placeholder land-use ranking",
+                "suitability": "user_parameter",
+                "escala_factor": [0, 5],
+                "captura": "usuario",
             },
         },
     },
     {
         "id_criterio": "SOC_06",
-        "nombre": "Distancia a infraestructura crítica",
+        "nombre": "Zonas arqueológicas",
         "bloque": "socioeconomico",
-        "fuente": "ERS / buenas prácticas",
-        "tipo_restriccion": "modelo",
+        "fuente": "NOM-083-SEMARNAT-2003 §6.1.4 / INAH",
+        "tipo_restriccion": "normativa",
         "activo": True,
+        "peso_local": 0.1052,
+        "peso_global": 0.0342,
         "regla": {
-            "descripcion": (
-                "Buffer/preferencia respecto a líneas eléctricas, ductos e industria sensible."
-            ),
+            "descripcion": "Excluye sitios con vestigios patrimoniales protegidos.",
             "parametros_json": {
-                "buffer_m": 100,
                 "suitability": "binary_exclusion",
-                "notes": "placeholder buffer",
+                "norma": "NOM-083 §6.1.4",
             },
         },
     },
     {
         "id_criterio": "SOC_07",
-        "nombre": "Conflicto social / aceptación comunitaria",
+        "nombre": "Vida útil del sitio",
         "bloque": "socioeconomico",
-        "fuente": "ERS / consulta pública",
-        "tipo_restriccion": "advertencia",
+        "fuente": "SEDESOL NTE-CRM-001/90 / panel",
+        "tipo_restriccion": "modelo",
         "activo": True,
+        "peso_local": 0.1034,
+        "peso_global": 0.0335,
         "regla": {
-            "descripcion": "Capa de advertencia socioeconómica; no exclusión normativa dura.",
+            "descripcion": (
+                "Valora capacidad del sitio para periodo mínimo de operación. "
+                "SEDESOL: vida útil mínima 7 años. Se calcula por polígono candidato."
+            ),
             "parametros_json": {
-                "suitability": "warning_overlay",
-                "notes": "placeholder pending thesis PDF",
+                "suitability": "polygon_metric",
+                "vida_util_min_anios": 7,
+                "escala_factor": [0, 5],
+                "fase": "poligono",
+                "antecedente": "SEDESOL (mín. 7 años)",
+            },
+        },
+    },
+    {
+        "id_criterio": "SOC_08",
+        "nombre": "Disponibilidad de material de cobertura",
+        "bloque": "socioeconomico",
+        "fuente": "Panel de expertos / OPS-EPA antecedentes",
+        "tipo_restriccion": "modelo",
+        "activo": True,
+        "peso_local": 0.0996,
+        "peso_global": 0.0323,
+        "regla": {
+            "descripcion": (
+                "Valora proximidad y accesibilidad de materiales para cobertura "
+                "periódica de residuos."
+            ),
+            "parametros_json": {
+                "suitability": "linear_decreasing_distance",
+                "escala_factor": [0, 5],
+            },
+        },
+    },
+    {
+        "id_criterio": "SOC_09",
+        "nombre": "Cables de alta tensión (sistema eléctrico)",
+        "bloque": "socioeconomico",
+        "fuente": "SEDESOL NTE-CRM-001/90 / panel",
+        "tipo_restriccion": "modelo",
+        "activo": True,
+        "peso_local": 0.0860,
+        "peso_global": 0.0279,
+        "regla": {
+            "descripcion": (
+                "Excluye zonas próximas a líneas de alta tensión por seguridad "
+                "operativa (construcción y operación)."
+            ),
+            "parametros_json": {
+                "suitability": "binary_exclusion",
+                "buffer_m": 50,
+                "origen_buffer": "literatura_operativa",
+            },
+        },
+    },
+    {
+        "id_criterio": "SOC_10",
+        "nombre": "Intermunicipalidad",
+        "bloque": "socioeconomico",
+        "fuente": "Panel de expertos (Tabla 4.1)",
+        "tipo_restriccion": "modelo",
+        "activo": True,
+        "peso_local": 0.0934,
+        "peso_global": 0.0303,
+        "regla": {
+            "descripcion": (
+                "Favorece sitios que atiendan varios municipios. "
+                "Se evalúa por polígono (distancia promedio ponderada)."
+            ),
+            "parametros_json": {
+                "suitability": "polygon_metric",
+                "escala_factor": [0, 5],
+                "fase": "poligono",
             },
         },
     },
 ]
 
-# Uniform local weights within each 7-criterion block (placeholder).
-_LOCAL = 1.0 / 7.0
 PESOS_LOCALES: dict[str, float] = {
-    cid: _LOCAL
-    for cid in (
-        "GEO_01",
-        "GEO_02",
-        "GEO_03",
-        "GEO_04",
-        "GEO_05",
-        "GEO_06",
-        "GEO_07",
-        "ECO_01",
-        "ECO_02",
-        "ECO_03",
-        "ECO_04",
-        "ECO_05",
-        "ECO_06",
-        "ECO_07",
-        "SOC_01",
-        "SOC_02",
-        "SOC_03",
-        "SOC_04",
-        "SOC_05",
-        "SOC_06",
-        "SOC_07",
-    )
+    c["id_criterio"]: c["peso_local"] for c in CRITERIOS_SEED
+}
+PESOS_GLOBALES: dict[str, float] = {
+    c["id_criterio"]: c["peso_global"] for c in CRITERIOS_SEED
 }
 
+
+def peso_global(id_criterio: str, bloque: str | None = None) -> float:
+    return PESOS_GLOBALES[id_criterio]
+
+
 assert len(CRITERIOS_SEED) == 21
-assert len(PESOS_LOCALES) == 21
+assert sum(1 for c in CRITERIOS_SEED if c["bloque"] == "geohidrologico") == 7
+assert sum(1 for c in CRITERIOS_SEED if c["bloque"] == "ecologico") == 4
+assert sum(1 for c in CRITERIOS_SEED if c["bloque"] == "socioeconomico") == 10
 assert abs(sum(BLOQUE_WEIGHTS.values()) - 1.0) < 1e-9
+assert abs(sum(PESOS_GLOBALES.values()) - 1.0) < 1e-3  # tesis ~100%
+for _b in ("geohidrologico", "ecologico", "socioeconomico"):
+    assert abs(sum(c["peso_local"] for c in CRITERIOS_SEED if c["bloque"] == _b) - 1.0) < 1e-3

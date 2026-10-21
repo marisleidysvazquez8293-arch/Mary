@@ -1,7 +1,5 @@
 """
-Conjuntos de pesos AHP y pesos por criterio (PASO 1).
-
-cr_* almacenan el Consistency Ratio por bloque (geohidro / ecol / socio).
+Conjuntos de pesos AHP y pesos por criterio (Apéndice B).
 """
 from django.db import models
 
@@ -9,22 +7,26 @@ from apps.reglas.models import Criterio
 
 
 class ConjuntoPesosAHP(models.Model):
-    nombre = models.CharField(max_length=255)
-    descripcion = models.TextField(blank=True)
+    nombre = models.CharField("Nombre", max_length=255)
+    descripcion = models.TextField("Descripción", blank=True)
     cr_geohidro = models.FloatField(
-        help_text="Consistency Ratio del bloque geohidrológico.",
+        "CR geohidrológico",
+        help_text="Razón de consistencia del bloque geohidrológico.",
     )
     cr_ecol = models.FloatField(
-        help_text="Consistency Ratio del bloque ecológico.",
+        "CR ecológico",
+        help_text="Razón de consistencia del bloque ecológico.",
     )
     cr_socio = models.FloatField(
-        help_text="Consistency Ratio del bloque socioeconómico.",
+        "CR socioeconómico",
+        help_text="Razón de consistencia del bloque socioeconómico.",
     )
     es_agregado_grupo = models.BooleanField(
+        "Es agregado de grupo",
         default=False,
-        help_text="True si el conjunto agrega juicios de un grupo de expertos.",
+        help_text="Verdadero si agrega juicios de un grupo de expertos (AIJ).",
     )
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField("Fecha de creación", auto_now_add=True)
 
     class Meta:
         verbose_name = "Conjunto de pesos AHP"
@@ -47,16 +49,20 @@ class PesoCriterio(models.Model):
         ConjuntoPesosAHP,
         on_delete=models.CASCADE,
         related_name="pesos",
+        verbose_name="Conjunto AHP",
     )
     criterio = models.ForeignKey(
         Criterio,
         on_delete=models.PROTECT,
         related_name="pesos_ahp",
+        verbose_name="Criterio",
     )
     peso_local = models.FloatField(
+        "Peso local",
         help_text="Peso local dentro del bloque AHP.",
     )
     peso_global = models.FloatField(
+        "Peso global",
         help_text="Peso global respecto al objetivo de idoneidad.",
     )
 

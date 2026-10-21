@@ -1,8 +1,5 @@
 """
-Escenarios de ejecución multicriterio (PASO 1).
-
-hash_configuracion identifica de forma única la configuración usada;
-resultados_json guarda superficies por clase de idoneidad.
+Escenarios de ejecución multicriterio.
 """
 from django.db import models
 
@@ -10,8 +7,9 @@ from apps.multicriterio.models import ConjuntoPesosAHP
 
 
 class Escenario(models.Model):
-    nombre = models.CharField(max_length=255)
+    nombre = models.CharField("Nombre", max_length=255)
     version_reglas_usada = models.CharField(
+        "Versión de reglas usada",
         max_length=64,
         help_text="Identificador/versión del conjunto de reglas aplicado.",
     )
@@ -19,29 +17,35 @@ class Escenario(models.Model):
         ConjuntoPesosAHP,
         on_delete=models.PROTECT,
         related_name="escenarios",
+        verbose_name="Conjunto de pesos AHP",
     )
     hash_configuracion = models.CharField(
+        "Hash de configuración",
         max_length=128,
         unique=True,
         help_text="Hash único de la configuración del escenario.",
     )
     hash_resultado = models.CharField(
+        "Hash de resultado",
         max_length=128,
         blank=True,
         default="",
         help_text="Hash del resultado espacial (vacío hasta ejecutar).",
     )
     fecha_ejecucion = models.DateTimeField(
+        "Fecha de ejecución",
         null=True,
         blank=True,
         help_text="Momento de la última ejecución exitosa.",
     )
     parametros_ejecucion = models.JSONField(
+        "Parámetros de ejecución",
         default=dict,
         blank=True,
         help_text="Parámetros de corrida (resolución, extent, etc.).",
     )
     resultados_json = models.JSONField(
+        "Resultados (JSON)",
         default=dict,
         blank=True,
         help_text="Superficies / métricas por clase de idoneidad.",

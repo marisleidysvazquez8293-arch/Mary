@@ -45,15 +45,18 @@ python manage.py runserver
 
 Admin: http://127.0.0.1:8000/admin/
 
-## PASO 2 — seed data
+## PASO 2 — semilla Tabla 4.1 / Apéndice B (tesis)
 
 ```bash
-python manage.py load_initial_rules          # idempotent
+python manage.py load_initial_rules          # idempotente
 python manage.py load_initial_rules --dry-run
 ```
 
-21 placeholder criterios (`GEO_01`–`07`, `ECO_01`–`07`, `SOC_01`–`07`) + AHP block
-weights 36.54 / 31.01 / 32.45%. **Placeholder pending thesis PDF.**
+**21 criterios reales de la tesis** (corregido: **GEO×7, ECO×4, SOC×10**, no 7/7/7):
+
+- Pesos de bloque: GEO **36.54%**, ECO **31.01%**, SOC **32.45%**
+- CR AIJ: geo **0.0035**, eco **0.0020**, socio **0.0047**
+- Catálogo y fuentes: [`docs/criterios-fuente.md`](docs/criterios-fuente.md)
 
 ## PASO 3 — engine services
 

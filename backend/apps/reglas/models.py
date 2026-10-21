@@ -1,8 +1,7 @@
 """
-Reglas de restricción y criterios SADE (PASO 1).
+Reglas de restricción y criterios SADE (Tabla 4.1).
 
-Bloques: geohidrológico, ecológico, socioeconómico.
-Códigos tipicos: GEO_01, ECO_01, SOC_01 (id_criterio).
+Bloques: geohidrológico (7), ecológico (4), socioeconómico (10).
 """
 from django.db import models
 
@@ -19,21 +18,24 @@ class Criterio(models.Model):
         ADVERTENCIA = "advertencia", "Advertencia"
 
     id_criterio = models.CharField(
+        "Identificador del criterio",
         max_length=32,
         unique=True,
-        help_text="Código único del criterio (ej. GEO_01, ECO_01, SOC_01).",
+        help_text="Código único (ej. GEO_01, ECO_01, SOC_01).",
     )
-    nombre = models.CharField(max_length=255)
-    bloque = models.CharField(max_length=32, choices=Bloque.choices)
+    nombre = models.CharField("Nombre", max_length=255)
+    bloque = models.CharField("Bloque", max_length=32, choices=Bloque.choices)
     fuente = models.CharField(
+        "Fuente",
         max_length=128,
         help_text="Fuente normativa o técnica (NOM-083, SEDESOL, etc.).",
     )
     tipo_restriccion = models.CharField(
+        "Tipo de restricción",
         max_length=32,
         choices=TipoRestriccion.choices,
     )
-    activo = models.BooleanField(default=True)
+    activo = models.BooleanField("Activo", default=True)
 
     class Meta:
         verbose_name = "Criterio"
@@ -53,21 +55,25 @@ class Regla(models.Model):
         Criterio,
         on_delete=models.CASCADE,
         related_name="reglas",
+        verbose_name="Criterio",
     )
     version = models.CharField(
+        "Versión",
         max_length=32,
         help_text="Versión semver de la regla (ej. 1.0.0).",
     )
     parametros_json = models.JSONField(
+        "Parámetros (JSON)",
         default=dict,
         blank=True,
         help_text="Buffers, umbrales y funciones de idoneidad.",
     )
     es_regla_respaldo = models.BooleanField(
+        "Es regla de respaldo",
         default=False,
-        help_text="True si es regla de respaldo ante datos incompletos.",
+        help_text="Verdadero si es regla de respaldo ante datos incompletos.",
     )
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField("Descripción", blank=True)
 
     class Meta:
         verbose_name = "Regla"

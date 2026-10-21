@@ -112,19 +112,19 @@ class EscenarioExecutionService:
         dist_aero = np.hypot(yy - h / 2, xx - w / 2) * 3000.0
         distance_specs = [
             {
-                "id_criterio": "GEO_01",
+                "id_criterio": "ECO_01",
                 "tipo_restriccion": "normativa",
                 "distance_m": dist_water,
                 "parametros": {"buffer_m": 500},
             },
             {
-                "id_criterio": "GEO_02",
+                "id_criterio": "ECO_02",
                 "tipo_restriccion": "normativa",
                 "distance_m": dist_wells,
                 "parametros": {"buffer_m": 500},
             },
             {
-                "id_criterio": "SOC_02",
+                "id_criterio": "SOC_01",
                 "tipo_restriccion": "advertencia",
                 "distance_m": dist_aero,
                 "parametros": {"warning_radius_m": 13_000},
